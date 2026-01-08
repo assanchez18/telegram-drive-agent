@@ -31,11 +31,12 @@ app.use(express.json({ limit: '20mb' }));
 // se disparará cuando lleguen updates vía webhook)
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
+  const isDev = process.env.NODE_ENV === 'development';
 
   try {
     // 1) Allowlist por usuario
     if (!isAuthorizedTelegramUser(msg)) {
-      await bot.sendMessage(chatId, '⛔ No autorizado.');
+      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⛔ No autorizado.`);
       return;
     }
 
@@ -47,13 +48,13 @@ bot.on('message', async (msg) => {
       if (msg.text?.startsWith('/start')) {
         await bot.sendMessage(
           chatId,
-          '👋 Envíame un documento (PDF/docx/etc.) o una foto y lo subiré a Google Drive.'
+          `${isDev ? 'DEV:: ' : ''}👋 Envíame un documento (PDF/docx/etc.) o una foto y lo subiré a Google Drive.`
         );
       }
       return;
     }
 
-    await bot.sendMessage(chatId, '📥 Recibido. Subiendo a Google Drive…');
+    await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}📥 Recibido. Subiendo a Google Drive…`);
 
     // 3) Cliente Drive API (con oAuth)
     const drive = createDriveClient(auth);
@@ -76,11 +77,11 @@ bot.on('message', async (msg) => {
       parentFolderId: DRIVE_FOLDER_ID,
     });
 
-    await bot.sendMessage(chatId, `✅ Subido a Drive: ${uploaded.name} (${uploaded.id})`);
+    await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}✅ Subido a Drive: ${uploaded.name} (${uploaded.id})`);
   } catch (err) {
     console.error('Error procesando mensaje:', err);
     try {
-      await bot.sendMessage(chatId, '❌ Error subiendo el archivo. Revisa logs.');
+      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}❌ Error subiendo el archivo. Revisa logs.`);
     } catch {
       // si no podemos enviar mensaje, no hacemos nada
     }
@@ -105,4 +106,13 @@ app.post('/telegram/webhook', (req, res) => {
 });
 
 const port = process.env.PORT || 8080;
-app.listen(port, () => console.log(`🚀 Webhook server escuchando en :${port}`));
+const isDev = process.env.NODE_ENV === 'development';
+
+app.listen(port, () => {
+  console.log(`🚀 Webhook server escuchando en :${port}`);
+  if (isDev) {
+    console.log('🔧 Modo DEV activado');
+    console.log('   Ejecuta: npm run tunnel (en otra terminal)');
+    console.log('   Luego: npm run webhook:dev (en otra terminal)');
+  }
+});
