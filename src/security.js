@@ -1,9 +1,14 @@
-const ALLOWED_USER_IDS = new Set(
-  (process.env.ALLOWED_TELEGRAM_USER_IDS || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
-);
+export function parseAllowedUserIds(allowedListString) {
+  if (!allowedListString) return new Set();
+  return new Set(
+    allowedListString
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  );
+}
+
+const ALLOWED_USER_IDS = parseAllowedUserIds(process.env.ALLOWED_TELEGRAM_USER_IDS);
 
 export function isAuthorizedTelegramUser(msg) {
   const senderId = String(msg.from?.id || '');
