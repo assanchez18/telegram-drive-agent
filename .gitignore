@@ -1,0 +1,3 @@
+.env
+secrets/**
+bot-telegram-service-account-key-gcloud.json
