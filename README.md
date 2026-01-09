@@ -30,6 +30,7 @@ Usuario → Telegram → Webhook → Cloud Run (Express) → Google Drive API
   - Verificación de webhook con `secret_token`
   - Validación del header `X-Telegram-Bot-Api-Secret-Token`
 - **OAuth offline**: Usa refresh tokens de Google para autenticación persistente sin intervención manual
+- **Gestión de viviendas**: Creación automática de estructura de carpetas en Drive para cada vivienda con catálogo persistente
 - **Desarrollo ágil**: Modo dev con Cloudflare Tunnel para probar sin redeploy
 - **Tests obligatorios**: Coverage 100% enforced con Vitest
 - **Modo DEV visual**: Los mensajes del bot empiezan con `DEV::` en desarrollo
@@ -108,10 +109,40 @@ Este script lee la URL del tunnel y configura el webhook de Telegram para apunta
 
 ### Probar en desarrollo
 
-1. Envía `/start` al bot en Telegram
-2. Envía un documento o una foto
-3. Los logs aparecerán en la Terminal 1
-4. Los mensajes del bot empezarán con `DEV::` para indicar que estás en modo desarrollo
+1. Envía `/start` al bot en Telegram para ver los comandos disponibles
+2. Prueba los comandos de gestión de viviendas:
+   - `/add_property` - El bot te pedirá la dirección de la vivienda
+   - `/list_properties` - Lista todas las viviendas registradas
+3. Envía un documento o una foto para subirlo a Drive
+4. Los logs aparecerán en la Terminal 1
+5. Los mensajes del bot empezarán con `DEV::` para indicar que estás en modo desarrollo
+
+#### Ejemplo: Añadir una vivienda
+
+```
+Usuario: /add_property
+Bot: DEV:: 📍 Por favor, envía la dirección de la vivienda.
+Usuario: Calle Mayor 123, Madrid
+Bot: DEV:: ✅ Vivienda "Calle Mayor 123, Madrid" creada con éxito
+```
+
+El bot creará automáticamente en Google Drive la siguiente estructura:
+
+```
+DRIVE_FOLDER_ID/
+└── Viviendas/
+    └── Calle Mayor 123, Madrid/
+        ├── 01_Contratos/2026/
+        ├── 02_Inquilinos_Sensible/
+        ├── 03_Seguros/2026/
+        ├── 04_Suministros/2026/
+        ├── 05_Comunidad_Impuestos/2026/
+        ├── 06_Incidencias_Reformas/Facturas/2026/
+        ├── 07_Fotos_Estado/
+        └── 99_Otros/
+```
+
+Las viviendas se almacenan en un catálogo persistente (`.properties.json`) en Drive, sin necesidad de base de datos externa.
 
 ## Despliegue en producción
 
@@ -197,28 +228,52 @@ Se excluyen de coverage:
 - `scripts/**` (scripts de túnel y configuración de webhook)
 - `*.config.js`
 
+## Comandos del bot
+
+| Comando | Descripción |
+|---------|-------------|
+| `/start` | Muestra mensaje de bienvenida y comandos disponibles |
+| `/add_property` | Inicia el proceso para añadir una nueva vivienda. El bot pedirá la dirección y creará automáticamente la estructura de carpetas en Drive |
+| `/list_properties` | Muestra la lista de todas las viviendas registradas, ordenadas alfabéticamente |
+
 ## Estructura del proyecto
 
 ```
 .
 ├── src/
-│   ├── index.js           # Servidor Express y lógica principal
-│   ├── auth.js            # Autenticación OAuth con Google
-│   ├── drive.js           # Cliente de Google Drive API
-│   ├── telegram.js        # Cliente de Telegram Bot API
-│   └── security.js        # Validación de webhook y autorización
+│   ├── index.js                          # Servidor Express (solo bootstrapping)
+│   ├── auth.js                           # Autenticación OAuth con Google
+│   ├── drive.js                          # Cliente de Google Drive API
+│   ├── telegram.js                       # Cliente de Telegram Bot API
+│   ├── security.js                       # Validación de webhook y autorización
+│   ├── controllers/
+│   │   └── telegramController.js         # Handlers de comandos /add_property y /list_properties
+│   ├── services/
+│   │   └── propertyService.js            # Lógica de negocio para gestión de viviendas
+│   ├── repositories/
+│   │   └── propertyCatalogRepository.js  # Persistencia del catálogo en Drive (.properties.json)
+│   ├── adapters/
+│   │   └── driveAdapter.js               # Operaciones de Drive (crear carpetas)
+│   └── domain/
+│       └── normalizeAddress.js           # Normalización de direcciones
 ├── test/
-│   ├── security.test.js   # Tests de seguridad
-│   └── authz.test.js      # Tests de autorización
+│   ├── security.test.js                  # Tests de seguridad
+│   ├── authz.test.js                     # Tests de autorización
+│   ├── normalizeAddress.test.js          # Tests de normalización
+│   ├── driveAdapter.test.js              # Tests de operaciones Drive
+│   ├── propertyCatalogRepository.test.js # Tests de persistencia
+│   ├── propertyService.test.js           # Tests de lógica de negocio
+│   └── telegramController.test.js        # Tests de controladores
 ├── scripts/
-│   ├── tunnel.mjs         # Script para Cloudflare Tunnel
-│   ├── webhook-dev.mjs    # Configuración de webhook DEV
-│   └── webhook-prod.mjs   # Configuración de webhook PROD
-├── vitest.config.js       # Configuración de Vitest
+│   ├── tunnel.mjs                        # Script para Cloudflare Tunnel
+│   ├── webhook-dev.mjs                   # Configuración de webhook DEV
+│   └── webhook-prod.mjs                  # Configuración de webhook PROD
+├── vitest.config.js                      # Configuración de Vitest
 ├── package.json
-├── Dockerfile             # Imagen Docker para Cloud Run
-├── DEV.md                 # Guía rápida de desarrollo
-└── README.md              # Este archivo
+├── Dockerfile                            # Imagen Docker para Cloud Run
+├── CLAUDE.md                             # Reglas de trabajo para Claude Code
+├── DEV.md                                # Guía rápida de desarrollo
+└── README.md                             # Este archivo
 ```
 
 ## Flujo de autorización OAuth (primera vez)

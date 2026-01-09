@@ -11,6 +11,7 @@ import {
   isAuthorizedTelegramUser,
   verifyTelegramWebhookSecret,
 } from './security.js';
+import { initializePropertyHandlers } from './controllers/telegramController.js';
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -23,6 +24,13 @@ const DRIVE_FOLDER_ID = requireEnv('DRIVE_FOLDER_ID');
 
 const auth = getDriveAuth();
 const bot = createTelegramBot(BOT_TOKEN);
+const drive = createDriveClient(auth);
+
+const propertyController = initializePropertyHandlers({
+  bot,
+  drive,
+  baseFolderId: DRIVE_FOLDER_ID,
+});
 
 const app = express();
 app.use(express.json({ limit: '20mb' }));
@@ -34,21 +42,23 @@ bot.on('message', async (msg) => {
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
-    // 1) Allowlist por usuario
     if (!isAuthorizedTelegramUser(msg)) {
       await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⛔ No autorizado.`);
       return;
     }
 
-    // 2) Extraer archivo (documento o foto)
+    const isHandled = await propertyController.handleTextMessage(msg);
+    if (isHandled) {
+      return;
+    }
+
     const fileInfo = extractTelegramFileInfo(msg);
 
-    // Mensajes sin archivo: ayuda básica
     if (!fileInfo) {
       if (msg.text?.startsWith('/start')) {
         await bot.sendMessage(
           chatId,
-          `${isDev ? 'DEV:: ' : ''}👋 Envíame un documento (PDF/docx/etc.) o una foto y lo subiré a Google Drive.`
+          `${isDev ? 'DEV:: ' : ''}👋 Envíame un documento (PDF/docx/etc.) o una foto y lo subiré a Google Drive.\n\nComandos disponibles:\n/add_property - Añadir vivienda\n/list_properties - Listar viviendas`
         );
       }
       return;
@@ -56,10 +66,7 @@ bot.on('message', async (msg) => {
 
     await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}📥 Recibido. Subiendo a Google Drive…`);
 
-    // 3) Cliente Drive API (con oAuth)
-    const drive = createDriveClient(auth);
-
-    // 4) Descargar stream desde Telegram
+    // 3) Descargar stream desde Telegram
     const { stream, fallbackName } = await getFileDownloadStream(
       bot,
       BOT_TOKEN,
@@ -68,7 +75,7 @@ bot.on('message', async (msg) => {
 
     const finalName = fileInfo.originalName || fallbackName;
 
-    // 5) Subir a Drive
+    // 4) Subir a Drive
     const uploaded = await uploadStreamToDrive({
       drive,
       filename: finalName,
