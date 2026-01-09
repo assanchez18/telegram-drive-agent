@@ -142,6 +142,50 @@ DRIVE_FOLDER_ID/
         └── 99_Otros/
 ```
 
+#### Ejemplo: Eliminar una vivienda
+
+```
+Usuario: /delete_property
+Bot: DEV:: 🗑️ Selecciona el número de la vivienda a eliminar:
+
+1. Calle Mayor 123, Madrid
+2. Avenida Principal 456
+
+Envía el número (1-2) o "cancelar"
+
+Usuario: 1
+Bot: DEV:: ⚠️ ¿Estás seguro de eliminar "Calle Mayor 123, Madrid"?
+
+⚠️ NOTA: Se eliminará del catálogo Y todas las carpetas en Drive.
+
+Responde "confirmar" para continuar o "cancelar" para abortar.
+
+Usuario: confirmar
+Bot: DEV:: 🗑️ Vivienda "Calle Mayor 123, Madrid" eliminada del catálogo y de Drive
+```
+
+#### Ejemplo: Archivar una vivienda
+
+```
+Usuario: /archive_property
+Bot: DEV:: 📦 Selecciona el número de la vivienda a archivar:
+
+1. Calle Mayor 123, Madrid
+2. Avenida Principal 456
+
+Envía el número (1-2) o "cancelar"
+
+Usuario: 1
+Bot: DEV:: ⚠️ ¿Estás seguro de archivar "Calle Mayor 123, Madrid"?
+
+⚠️ NOTA: Se moverá a la carpeta "Archivo" en Drive.
+
+Responde "confirmar" para continuar o "cancelar" para abortar.
+
+Usuario: confirmar
+Bot: DEV:: 📦 Vivienda "Calle Mayor 123, Madrid" archivada correctamente
+```
+
 Las viviendas se almacenan en un catálogo persistente (`.properties.json`) en Drive, sin necesidad de base de datos externa.
 
 ## Despliegue en producción
@@ -234,7 +278,11 @@ Se excluyen de coverage:
 |---------|-------------|
 | `/start` | Muestra mensaje de bienvenida y comandos disponibles |
 | `/add_property` | Inicia el proceso para añadir una nueva vivienda. El bot pedirá la dirección y creará automáticamente la estructura de carpetas en Drive |
-| `/list_properties` | Muestra la lista de todas las viviendas registradas, ordenadas alfabéticamente |
+| `/list_properties` | Muestra la lista de todas las viviendas activas registradas, ordenadas alfabéticamente |
+| `/delete_property` | **Elimina permanentemente** una vivienda del catálogo y **borra todas sus carpetas en Drive**. Muestra lista numerada y solicita confirmación. ⚠️ **ATENCIÓN:** Esta acción es irreversible |
+| `/archive_property` | Archiva una vivienda activa. La mueve del catálogo principal a la carpeta "Archivo" en Drive. La vivienda se puede reactivar más tarde |
+| `/list_archived` | Muestra la lista de todas las viviendas archivadas, ordenadas alfabéticamente |
+| `/unarchive_property` | Reactiva una vivienda archivada. La mueve de vuelta a la carpeta "Viviendas" en Drive y la añade al catálogo activo |
 
 ## Estructura del proyecto
 

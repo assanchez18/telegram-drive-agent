@@ -78,3 +78,36 @@ export async function createFolderStructure({ drive, baseFolderId, propertyAddre
 
   return propertyFolder;
 }
+
+export async function deleteFolder({ drive, folderId }) {
+  if (!folderId) {
+    throw new Error('Folder ID is required');
+  }
+
+  await drive.files.delete({
+    fileId: folderId,
+  });
+}
+
+export async function moveFolder({ drive, folderId, newParentId }) {
+  if (!folderId) {
+    throw new Error('Folder ID is required');
+  }
+  if (!newParentId) {
+    throw new Error('New parent ID is required');
+  }
+
+  const file = await drive.files.get({
+    fileId: folderId,
+    fields: 'parents',
+  });
+
+  const previousParents = file.data.parents ? file.data.parents.join(',') : '';
+
+  await drive.files.update({
+    fileId: folderId,
+    addParents: newParentId,
+    removeParents: previousParents,
+    fields: 'id, parents',
+  });
+}

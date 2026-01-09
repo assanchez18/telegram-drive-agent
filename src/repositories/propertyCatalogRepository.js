@@ -92,7 +92,7 @@ export async function addProperty({ drive, folderId, property }) {
   const catalog = await readCatalog({ drive, folderId });
 
   const exists = catalog.properties.some(
-    (p) => p.normalizedAddress === property.normalizedAddress
+    (p) => p.normalizedAddress === property.normalizedAddress && p.status !== 'deleted'
   );
 
   if (exists) {
@@ -104,6 +104,7 @@ export async function addProperty({ drive, folderId, property }) {
     normalizedAddress: property.normalizedAddress,
     propertyFolderId: property.propertyFolderId,
     createdAt: property.createdAt || new Date().toISOString(),
+    status: 'active',
   });
 
   await writeCatalog({ drive, folderId, catalog });
@@ -111,7 +112,86 @@ export async function addProperty({ drive, folderId, property }) {
 
 export async function listProperties({ drive, folderId }) {
   const catalog = await readCatalog({ drive, folderId });
-  return catalog.properties.sort((a, b) =>
-    a.address.localeCompare(b.address)
+  return catalog.properties
+    .filter((p) => p.status === 'active' || !p.status)
+    .sort((a, b) => a.address.localeCompare(b.address));
+}
+
+export async function listArchivedProperties({ drive, folderId }) {
+  const catalog = await readCatalog({ drive, folderId });
+  return catalog.properties
+    .filter((p) => p.status === 'archived')
+    .sort((a, b) => a.address.localeCompare(b.address));
+}
+
+export async function deleteProperty({ drive, folderId, normalizedAddress }) {
+  const catalog = await readCatalog({ drive, folderId });
+
+  const propertyIndex = catalog.properties.findIndex(
+    (p) => p.normalizedAddress === normalizedAddress && p.status !== 'deleted'
   );
+
+  if (propertyIndex === -1) {
+    throw new Error('Property not found');
+  }
+
+  const property = catalog.properties[propertyIndex];
+  const updatedProperty = {
+    ...property,
+    status: 'deleted',
+    deletedAt: new Date().toISOString(),
+  };
+  catalog.properties[propertyIndex] = updatedProperty;
+
+  await writeCatalog({ drive, folderId, catalog });
+
+  return updatedProperty;
+}
+
+export async function archiveProperty({ drive, folderId, normalizedAddress }) {
+  const catalog = await readCatalog({ drive, folderId });
+
+  const propertyIndex = catalog.properties.findIndex(
+    (p) => p.normalizedAddress === normalizedAddress && p.status === 'active'
+  );
+
+  if (propertyIndex === -1) {
+    throw new Error('Property not found');
+  }
+
+  const property = catalog.properties[propertyIndex];
+  const updatedProperty = {
+    ...property,
+    status: 'archived',
+    archivedAt: new Date().toISOString(),
+  };
+  catalog.properties[propertyIndex] = updatedProperty;
+
+  await writeCatalog({ drive, folderId, catalog });
+
+  return updatedProperty;
+}
+
+export async function unarchiveProperty({ drive, folderId, normalizedAddress }) {
+  const catalog = await readCatalog({ drive, folderId });
+
+  const propertyIndex = catalog.properties.findIndex(
+    (p) => p.normalizedAddress === normalizedAddress && p.status === 'archived'
+  );
+
+  if (propertyIndex === -1) {
+    throw new Error('Archived property not found');
+  }
+
+  const property = catalog.properties[propertyIndex];
+  const updatedProperty = {
+    ...property,
+    status: 'active',
+    unarchivedAt: new Date().toISOString(),
+  };
+  catalog.properties[propertyIndex] = updatedProperty;
+
+  await writeCatalog({ drive, folderId, catalog });
+
+  return updatedProperty;
 }

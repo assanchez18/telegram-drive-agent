@@ -55,12 +55,47 @@ bot.on('message', async (msg) => {
     const fileInfo = extractTelegramFileInfo(msg);
 
     if (!fileInfo) {
+      const helpMessage = `${isDev ? 'DEV:: ' : ''}📋 Todos los comandos disponibles:
+
+Gestión de viviendas:
+/add_property - Añadir nueva vivienda
+/list_properties - Listar viviendas activas
+/delete_property - Eliminar vivienda permanentemente
+
+Archivo:
+/archive - Menú de gestión de archivo
+
+Ayuda:
+/start - Mensaje de bienvenida
+/help - Mostrar esta ayuda`;
+
       if (msg.text?.startsWith('/start')) {
+        await bot.sendMessage(chatId, helpMessage);
+        return;
+      }
+      
+      if (msg.text?.startsWith('/archive') && msg.text === '/archive') {
         await bot.sendMessage(
           chatId,
-          `${isDev ? 'DEV:: ' : ''}👋 Envíame un documento (PDF/docx/etc.) o una foto y lo subiré a Google Drive.\n\nComandos disponibles:\n/add_property - Añadir vivienda\n/list_properties - Listar viviendas`
+          `${isDev ? 'DEV:: ' : ''}📦 Gestión de archivo:\n\n/archive_property - Archivar vivienda activa\n/list_archived - Ver viviendas archivadas\n/unarchive_property - Reactivar vivienda archivada`
         );
+        return;
       }
+
+      if (msg.text?.startsWith('/help')) {
+        await bot.sendMessage(chatId, helpMessage);
+        return;
+      }
+
+      const isHandledByPropertyController = await propertyController.handleTextMessage(msg);
+      if (isHandledByPropertyController) {
+        return;
+      }
+
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}❓ Comando no reconocido. Usa /help para ver todos los comandos disponibles.`
+      );
       return;
     }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { findOrCreateFolder, createFolderStructure } from '../src/adapters/driveAdapter.js';
+import { findOrCreateFolder, createFolderStructure, deleteFolder, moveFolder } from '../src/adapters/driveAdapter.js';
 
 describe('findOrCreateFolder', () => {
   it('devuelve carpeta existente si se encuentra', async () => {
@@ -272,5 +272,103 @@ describe('createFolderStructure', () => {
       (f) => f.name === '2024' && f.parents[0] === facturas.id
     );
     expect(year2024InFacturas).toBeDefined();
+  });
+});
+
+describe('deleteFolder', () => {
+  it('elimina una carpeta por su ID', async () => {
+    const mockDrive = {
+      files: {
+        delete: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    await deleteFolder({ drive: mockDrive, folderId: 'folder-to-delete' });
+
+    expect(mockDrive.files.delete).toHaveBeenCalledWith({
+      fileId: 'folder-to-delete',
+    });
+  });
+
+  it('lanza error si falta folderId', async () => {
+    const mockDrive = { files: {} };
+
+    await expect(
+      deleteFolder({ drive: mockDrive, folderId: '' })
+    ).rejects.toThrow('Folder ID is required');
+  });
+});
+
+describe('moveFolder', () => {
+  it('mueve una carpeta a un nuevo padre', async () => {
+    const mockDrive = {
+      files: {
+        get: vi.fn().mockResolvedValue({
+          data: { parents: ['old-parent-id'] },
+        }),
+        update: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', parents: ['new-parent-id'] },
+        }),
+      },
+    };
+
+    await moveFolder({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      newParentId: 'new-parent-id',
+    });
+
+    expect(mockDrive.files.get).toHaveBeenCalledWith({
+      fileId: 'folder-id',
+      fields: 'parents',
+    });
+    expect(mockDrive.files.update).toHaveBeenCalledWith({
+      fileId: 'folder-id',
+      addParents: 'new-parent-id',
+      removeParents: 'old-parent-id',
+      fields: 'id, parents',
+    });
+  });
+
+  it('maneja carpetas sin padres previos', async () => {
+    const mockDrive = {
+      files: {
+        get: vi.fn().mockResolvedValue({
+          data: {},
+        }),
+        update: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', parents: ['new-parent-id'] },
+        }),
+      },
+    };
+
+    await moveFolder({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      newParentId: 'new-parent-id',
+    });
+
+    expect(mockDrive.files.update).toHaveBeenCalledWith({
+      fileId: 'folder-id',
+      addParents: 'new-parent-id',
+      removeParents: '',
+      fields: 'id, parents',
+    });
+  });
+
+  it('lanza error si falta folderId', async () => {
+    const mockDrive = { files: {} };
+
+    await expect(
+      moveFolder({ drive: mockDrive, folderId: '', newParentId: 'new-parent-id' })
+    ).rejects.toThrow('Folder ID is required');
+  });
+
+  it('lanza error si falta newParentId', async () => {
+    const mockDrive = { files: {} };
+
+    await expect(
+      moveFolder({ drive: mockDrive, folderId: 'folder-id', newParentId: '' })
+    ).rejects.toThrow('New parent ID is required');
   });
 });

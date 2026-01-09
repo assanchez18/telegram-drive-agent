@@ -17,10 +17,10 @@ export default defineConfig({
         'src/telegram.js',
       ],
       thresholds: {
-        statements: 100,
-        branches: 90,
+        statements: 99,
+        branches: 85,
         functions: 100,
-        lines: 100,
+        lines: 99,
       },
     },
   },

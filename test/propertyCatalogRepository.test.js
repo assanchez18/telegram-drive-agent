@@ -6,6 +6,10 @@ import {
   propertyExists,
   addProperty,
   listProperties,
+  deleteProperty,
+  archiveProperty,
+  listArchivedProperties,
+  unarchiveProperty,
 } from '../src/repositories/propertyCatalogRepository.js';
 
 describe('findCatalogFile', () => {
@@ -443,5 +447,326 @@ describe('listProperties', () => {
     const result = await listProperties({ drive: mockDrive, folderId: 'folder-id' });
 
     expect(result).toEqual([]);
+  });
+});
+
+describe('deleteProperty', () => {
+  it('marca vivienda como deleted en el catálogo', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 123',
+                normalizedAddress: 'Calle Test 123',
+                propertyFolderId: 'folder-123',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'active',
+              },
+              {
+                address: 'Calle Test 456',
+                normalizedAddress: 'Calle Test 456',
+                propertyFolderId: 'folder-456',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'active',
+              },
+            ],
+          }),
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await deleteProperty({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      normalizedAddress: 'Calle Test 123',
+    });
+
+    expect(result.address).toBe('Calle Test 123');
+    expect(result.status).toBe('deleted');
+    expect(result.deletedAt).toBeDefined();
+    expect(mockDrive.files.update).toHaveBeenCalled();
+  });
+
+  it('lanza error si la vivienda no existe', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [],
+          }),
+        }),
+      },
+    };
+
+    await expect(
+      deleteProperty({
+        drive: mockDrive,
+        folderId: 'folder-id',
+        normalizedAddress: 'No Existe',
+      })
+    ).rejects.toThrow('Property not found');
+  });
+
+  it('no permite eliminar una vivienda ya marcada como deleted', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 123',
+                normalizedAddress: 'Calle Test 123',
+                propertyFolderId: 'folder-123',
+                status: 'deleted',
+                deletedAt: '2024-01-01T00:00:00.000Z',
+              },
+            ],
+          }),
+        }),
+      },
+    };
+
+    await expect(
+      deleteProperty({
+        drive: mockDrive,
+        folderId: 'folder-id',
+        normalizedAddress: 'Calle Test 123',
+      })
+    ).rejects.toThrow('Property not found');
+  });
+});
+
+describe('archiveProperty', () => {
+  it('marca vivienda como archived en el catálogo', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 123',
+                normalizedAddress: 'Calle Test 123',
+                propertyFolderId: 'folder-123',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'active',
+              },
+            ],
+          }),
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await archiveProperty({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      normalizedAddress: 'Calle Test 123',
+    });
+
+    expect(result.address).toBe('Calle Test 123');
+    expect(result.status).toBe('archived');
+    expect(result.archivedAt).toBeDefined();
+    expect(mockDrive.files.update).toHaveBeenCalled();
+  });
+
+  it('lanza error si la vivienda no está activa', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [],
+          }),
+        }),
+      },
+    };
+
+    await expect(
+      archiveProperty({
+        drive: mockDrive,
+        folderId: 'folder-id',
+        normalizedAddress: 'No Existe',
+      })
+    ).rejects.toThrow('Property not found');
+  });
+});
+
+describe('listArchivedProperties', () => {
+  it('devuelve solo viviendas archivadas ordenadas alfabéticamente', async () => {
+    const catalogData = {
+      version: 1,
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      properties: [
+        {
+          address: 'Calle Zeta 789',
+          normalizedAddress: 'calle zeta 789',
+          propertyFolderId: 'folder-789',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          status: 'archived',
+          archivedAt: '2024-01-02T00:00:00.000Z',
+        },
+        {
+          address: 'Avenida Alpha 123',
+          normalizedAddress: 'avenida alpha 123',
+          propertyFolderId: 'folder-123',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          status: 'active',
+        },
+        {
+          address: 'Boulevard Beta 456',
+          normalizedAddress: 'boulevard beta 456',
+          propertyFolderId: 'folder-456',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          status: 'archived',
+          archivedAt: '2024-01-03T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify(catalogData),
+        }),
+      },
+    };
+
+    const result = await listArchivedProperties({ drive: mockDrive, folderId: 'folder-id' });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].address).toBe('Boulevard Beta 456');
+    expect(result[1].address).toBe('Calle Zeta 789');
+  });
+
+  it('devuelve lista vacía si no hay viviendas archivadas', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: { files: [] },
+        }),
+      },
+    };
+
+    const result = await listArchivedProperties({ drive: mockDrive, folderId: 'folder-id' });
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe('unarchiveProperty', () => {
+  it('marca vivienda archivada como active', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 123',
+                normalizedAddress: 'Calle Test 123',
+                propertyFolderId: 'folder-123',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'archived',
+                archivedAt: '2024-01-02T00:00:00.000Z',
+              },
+            ],
+          }),
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await unarchiveProperty({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      normalizedAddress: 'Calle Test 123',
+    });
+
+    expect(result.address).toBe('Calle Test 123');
+    expect(result.status).toBe('active');
+    expect(result.unarchivedAt).toBeDefined();
+    expect(mockDrive.files.update).toHaveBeenCalled();
+  });
+
+  it('lanza error si la vivienda no está archivada', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 123',
+                normalizedAddress: 'Calle Test 123',
+                propertyFolderId: 'folder-123',
+                status: 'active',
+              },
+            ],
+          }),
+        }),
+      },
+    };
+
+    await expect(
+      unarchiveProperty({
+        drive: mockDrive,
+        folderId: 'folder-id',
+        normalizedAddress: 'Calle Test 123',
+      })
+    ).rejects.toThrow('Archived property not found');
   });
 });

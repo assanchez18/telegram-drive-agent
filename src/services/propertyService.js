@@ -1,9 +1,13 @@
 import { normalizeAddress } from '../domain/normalizeAddress.js';
-import { createFolderStructure } from '../adapters/driveAdapter.js';
+import { createFolderStructure, deleteFolder, moveFolder, findOrCreateFolder } from '../adapters/driveAdapter.js';
 import {
   propertyExists,
   addProperty as addPropertyToRepo,
   listProperties as listPropertiesFromRepo,
+  deleteProperty as deletePropertyFromRepo,
+  archiveProperty as archivePropertyInRepo,
+  listArchivedProperties as listArchivedPropertiesFromRepo,
+  unarchiveProperty as unarchivePropertyInRepo,
 } from '../repositories/propertyCatalogRepository.js';
 
 export async function addProperty({ drive, baseFolderId, address }) {
@@ -70,4 +74,122 @@ export async function listProperties({ drive, baseFolderId }) {
   }
 
   return { properties, message: null };
+}
+
+export async function deleteProperty({ drive, baseFolderId, normalizedAddress }) {
+  if (!drive) {
+    throw new Error('Drive client is required');
+  }
+  if (!baseFolderId) {
+    throw new Error('Base folder ID is required');
+  }
+  if (!normalizedAddress) {
+    throw new Error('Normalized address is required');
+  }
+
+  const deletedProperty = await deletePropertyFromRepo({
+    drive,
+    folderId: baseFolderId,
+    normalizedAddress,
+  });
+
+  await deleteFolder({ drive, folderId: deletedProperty.propertyFolderId });
+
+  return {
+    success: true,
+    message: `🗑️ Vivienda "${deletedProperty.address}" eliminada del catálogo y de Drive`,
+    property: deletedProperty,
+  };
+}
+
+export async function archiveProperty({ drive, baseFolderId, normalizedAddress }) {
+  if (!drive) {
+    throw new Error('Drive client is required');
+  }
+  if (!baseFolderId) {
+    throw new Error('Base folder ID is required');
+  }
+  if (!normalizedAddress) {
+    throw new Error('Normalized address is required');
+  }
+
+  const archivoFolder = await findOrCreateFolder({
+    drive,
+    name: 'Archivo',
+    parentId: baseFolderId,
+  });
+
+  const archivedProperty = await archivePropertyInRepo({
+    drive,
+    folderId: baseFolderId,
+    normalizedAddress,
+  });
+
+  await moveFolder({
+    drive,
+    folderId: archivedProperty.propertyFolderId,
+    newParentId: archivoFolder.id,
+  });
+
+  return {
+    success: true,
+    message: `📦 Vivienda "${archivedProperty.address}" archivada correctamente`,
+    property: archivedProperty,
+  };
+}
+
+export async function listArchivedProperties({ drive, baseFolderId }) {
+  if (!drive) {
+    throw new Error('Drive client is required');
+  }
+  if (!baseFolderId) {
+    throw new Error('Base folder ID is required');
+  }
+
+  const properties = await listArchivedPropertiesFromRepo({ drive, folderId: baseFolderId });
+
+  if (properties.length === 0) {
+    return {
+      properties: [],
+      message: 'No hay viviendas archivadas.',
+    };
+  }
+
+  return { properties, message: null };
+}
+
+export async function unarchiveProperty({ drive, baseFolderId, normalizedAddress }) {
+  if (!drive) {
+    throw new Error('Drive client is required');
+  }
+  if (!baseFolderId) {
+    throw new Error('Base folder ID is required');
+  }
+  if (!normalizedAddress) {
+    throw new Error('Normalized address is required');
+  }
+
+  const viviendasFolder = await findOrCreateFolder({
+    drive,
+    name: 'Viviendas',
+    parentId: baseFolderId,
+  });
+
+  const unarchivedProperty = await unarchivePropertyInRepo({
+    drive,
+    folderId: baseFolderId,
+    normalizedAddress,
+  });
+
+  await moveFolder({
+    drive,
+    folderId: unarchivedProperty.propertyFolderId,
+    newParentId: viviendasFolder.id,
+  });
+
+  return {
+    success: true,
+    message: `♻️ Vivienda "${unarchivedProperty.address}" reactivada correctamente`,
+    property: unarchivedProperty,
+  };
 }

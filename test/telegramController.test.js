@@ -13,10 +13,19 @@ describe('initializePropertyHandlers', () => {
 
     mockBot = {
       onText: vi.fn((pattern, handler) => {
-        if (pattern.toString().includes('add_property')) {
+        const patternStr = pattern.toString();
+        if (patternStr.includes('unarchive_property')) {
+          commandHandlers.unarchive_property = handler;
+        } else if (patternStr.includes('archive_property')) {
+          commandHandlers.archive_property = handler;
+        } else if (patternStr.includes('add_property')) {
           commandHandlers.add_property = handler;
-        } else if (pattern.toString().includes('list_properties')) {
+        } else if (patternStr.includes('list_archived')) {
+          commandHandlers.list_archived = handler;
+        } else if (patternStr.includes('list_properties')) {
           commandHandlers.list_properties = handler;
+        } else if (patternStr.includes('delete_property')) {
+          commandHandlers.delete_property = handler;
         }
       }),
       sendMessage: vi.fn().mockResolvedValue({}),
@@ -36,6 +45,7 @@ describe('initializePropertyHandlers', () => {
           data: { id: 'new-folder-id', name: 'Test' },
         }),
         update: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
       },
     };
   });
@@ -712,6 +722,987 @@ describe('initializePropertyHandlers', () => {
     expect(call[1]).toContain('/add_property');
 
     process.env.NODE_ENV = originalEnv;
+  });
+
+  it('/delete_property sin viviendas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: { files: [] },
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('/add_property')
+    );
+  });
+
+  it('/delete_property muestra lista de viviendas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+          {
+            address: 'Calle Test 2',
+            normalizedAddress: 'Calle Test 2',
+            propertyFolderId: 'folder-2',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(msg);
+
+    const call = mockBot.sendMessage.mock.calls[mockBot.sendMessage.mock.calls.length - 1];
+    expect(call[1]).toContain('Calle Test 1');
+    expect(call[1]).toContain('Calle Test 2');
+    expect(call[1]).toContain('1-2');
+  });
+
+  it('handleTextMessage procesa selección de vivienda a eliminar', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const selectionMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    };
+
+    const handled = await controller.handleTextMessage(selectionMsg);
+
+    expect(handled).toBe(true);
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('¿Estás seguro de eliminar')
+    );
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Calle Test 1')
+    );
+  });
+
+  it('handleTextMessage cancela selección con "cancelar"', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const cancelMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'cancelar',
+    };
+
+    await controller.handleTextMessage(cancelMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('cancelada')
+    );
+  });
+
+  it('handleTextMessage rechaza número inválido', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const invalidMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '999',
+    };
+
+    await controller.handleTextMessage(invalidMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('inválido')
+    );
+  });
+
+  it('handleTextMessage confirma y elimina vivienda', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'active',
+          },
+        ],
+      }),
+    });
+
+    mockDrive.files.update.mockResolvedValue({});
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    const selectionMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    };
+
+    await controller.handleTextMessage(selectionMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const confirmMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    };
+
+    await controller.handleTextMessage(confirmMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('eliminada del catálogo')
+    );
+  });
+
+  it('handleTextMessage cancela en confirmación', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    const selectionMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    };
+
+    await controller.handleTextMessage(selectionMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const cancelMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'cancelar',
+    };
+
+    await controller.handleTextMessage(cancelMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('cancelada')
+    );
+  });
+
+  it('handleTextMessage rechaza respuesta inválida en confirmación', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    const selectionMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    };
+
+    await controller.handleTextMessage(selectionMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const invalidMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'tal vez',
+    };
+
+    await controller.handleTextMessage(invalidMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('no reconocida')
+    );
+  });
+
+  it('handleTextMessage maneja error al eliminar', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    mockDrive.files.update.mockRejectedValue(new Error('Drive error'));
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const deleteMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(deleteMsg);
+
+    const selectionMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    };
+
+    await controller.handleTextMessage(selectionMsg);
+
+    mockBot.sendMessage.mockClear();
+
+    const confirmMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    };
+
+    await controller.handleTextMessage(confirmMsg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('/delete_property maneja error al listar', async () => {
+    mockDrive.files.list.mockRejectedValue(new Error('Drive error'));
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/delete_property',
+    };
+
+    await commandHandlers.delete_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('/archive_property muestra lista de viviendas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Test 1',
+            normalizedAddress: 'Calle Test 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'active',
+          },
+        ],
+      }),
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/archive_property',
+    };
+
+    await commandHandlers.archive_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Selecciona el número de la vivienda a archivar')
+    );
+  });
+
+  it('handleTextMessage archiva vivienda correctamente', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockImplementation(async ({ fileId }) => {
+      if (fileId === 'catalog-id') {
+        return {
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 1',
+                normalizedAddress: 'Calle Test 1',
+                propertyFolderId: 'folder-1',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'active',
+              },
+            ],
+          }),
+        };
+      }
+      return { data: { parents: ['old-parent'] } };
+    });
+
+    mockDrive.files.update.mockResolvedValue({});
+    mockDrive.files.create.mockResolvedValue({
+      data: { id: 'archivo-folder-id', name: 'Archivo' },
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    await commandHandlers.archive_property({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/archive_property',
+    });
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    });
+
+    mockBot.sendMessage.mockClear();
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    });
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('archivada correctamente')
+    );
+  });
+
+  it('/list_archived muestra viviendas archivadas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Archived 1',
+            normalizedAddress: 'Calle Archived 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'archived',
+            archivedAt: '2024-01-02T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/list_archived',
+    };
+
+    await commandHandlers.list_archived(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Viviendas archivadas')
+    );
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Calle Archived 1')
+    );
+  });
+
+  it('/list_archived sin viviendas archivadas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: { files: [] },
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/list_archived',
+    };
+
+    await commandHandlers.list_archived(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('No hay viviendas archivadas')
+    );
+  });
+
+  it('/unarchive_property muestra lista de viviendas archivadas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [
+          {
+            address: 'Calle Archived 1',
+            normalizedAddress: 'Calle Archived 1',
+            propertyFolderId: 'folder-1',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            status: 'archived',
+            archivedAt: '2024-01-02T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/unarchive_property',
+    };
+
+    await commandHandlers.unarchive_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Selecciona el número de la vivienda a reactivar')
+    );
+  });
+
+  it('/archive_property maneja error al listar', async () => {
+    mockDrive.files.list.mockRejectedValue(new Error('Drive error'));
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/archive_property',
+    };
+
+    await commandHandlers.archive_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('handleTextMessage maneja error al archivar', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockImplementation(async () => {
+      return {
+        data: JSON.stringify({
+          version: 1,
+          updatedAt: '2024-01-01T00:00:00.000Z',
+          properties: [
+            {
+              address: 'Calle Test 1',
+              normalizedAddress: 'Calle Test 1',
+              propertyFolderId: 'folder-1',
+              createdAt: '2024-01-01T00:00:00.000Z',
+              status: 'active',
+            },
+          ],
+        }),
+      };
+    });
+
+    mockDrive.files.update.mockRejectedValue(new Error('Drive error'));
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    await commandHandlers.archive_property({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/archive_property',
+    });
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    });
+
+    mockBot.sendMessage.mockClear();
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    });
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('/list_archived maneja error al listar', async () => {
+    mockDrive.files.list.mockRejectedValue(new Error('Drive error'));
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/list_archived',
+    };
+
+    await commandHandlers.list_archived(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('/unarchive_property maneja error al listar', async () => {
+    mockDrive.files.list.mockRejectedValue(new Error('Drive error'));
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/unarchive_property',
+    };
+
+    await commandHandlers.unarchive_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('handleTextMessage maneja error al reactivar', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockImplementation(async () => {
+      return {
+        data: JSON.stringify({
+          version: 1,
+          updatedAt: '2024-01-01T00:00:00.000Z',
+          properties: [
+            {
+              address: 'Calle Test 1',
+              normalizedAddress: 'Calle Test 1',
+              propertyFolderId: 'folder-1',
+              createdAt: '2024-01-01T00:00:00.000Z',
+              status: 'archived',
+              archivedAt: '2024-01-02T00:00:00.000Z',
+            },
+          ],
+        }),
+      };
+    });
+
+    mockDrive.files.update.mockRejectedValue(new Error('Drive error'));
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    await commandHandlers.unarchive_property({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/unarchive_property',
+    });
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    });
+
+    mockBot.sendMessage.mockClear();
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    });
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('Error')
+    );
+  });
+
+  it('handleTextMessage reactiva vivienda correctamente', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockImplementation(async ({ fileId }) => {
+      if (fileId === 'catalog-id') {
+        return {
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 1',
+                normalizedAddress: 'Calle Test 1',
+                propertyFolderId: 'folder-1',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'archived',
+                archivedAt: '2024-01-02T00:00:00.000Z',
+              },
+            ],
+          }),
+        };
+      }
+      return { data: { parents: ['archivo-parent'] } };
+    });
+
+    mockDrive.files.update.mockResolvedValue({});
+    mockDrive.files.create.mockResolvedValue({
+      data: { id: 'viviendas-folder-id', name: 'Viviendas' },
+    });
+
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    await commandHandlers.unarchive_property({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/unarchive_property',
+    });
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '1',
+    });
+
+    mockBot.sendMessage.mockClear();
+
+    await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: 'confirmar',
+    });
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('reactivada correctamente')
+    );
   });
 
 });
