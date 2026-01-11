@@ -174,8 +174,7 @@ describe('createFolderStructure', () => {
     expect(createdNames).toContain('03_Seguros');
     expect(createdNames).toContain('04_Suministros');
     expect(createdNames).toContain('05_Comunidad_Impuestos');
-    expect(createdNames).toContain('06_Incidencias_Reformas');
-    expect(createdNames).toContain('Facturas');
+    expect(createdNames).toContain('06_Facturas_Reformas');
     expect(createdNames).toContain('07_Fotos_Estado');
     expect(createdNames).toContain('99_Otros');
   });
@@ -265,11 +264,11 @@ describe('createFolderStructure', () => {
       year: '2024',
     });
 
-    const facturas = createdFolders.find((f) => f.name === 'Facturas');
-    expect(facturas).toBeDefined();
+    const facturasReformas = createdFolders.find((f) => f.name === '06_Facturas_Reformas');
+    expect(facturasReformas).toBeDefined();
 
     const year2024InFacturas = createdFolders.find(
-      (f) => f.name === '2024' && f.parents[0] === facturas.id
+      (f) => f.name === '2024' && f.parents[0] === facturasReformas.id
     );
     expect(year2024InFacturas).toBeDefined();
   });

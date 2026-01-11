@@ -22,7 +22,7 @@ export async function downloadTelegramFile(bot, botToken, fileId) {
   return Buffer.from(response.data);
 }
 
-export function extractBulkFileInfo(msg) {
+export function extractFileInfo(msg) {
   const caption = msg.caption?.trim() || null;
 
   if (msg.document) {
@@ -59,3 +59,5 @@ export function extractBulkFileInfo(msg) {
 
   return null;
 }
+
+export const extractBulkFileInfo = extractFileInfo;

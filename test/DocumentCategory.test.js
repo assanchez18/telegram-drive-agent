@@ -27,9 +27,9 @@ describe('getCategoryFolderPath', () => {
     expect(result).toEqual(['05_Comunidad_Impuestos', '2024']);
   });
 
-  it('devuelve path con subcarpeta y año para Facturas_Reformas', () => {
+  it('devuelve path con año para Facturas_Reformas', () => {
     const result = getCategoryFolderPath(DOCUMENT_CATEGORIES.FACTURAS_REFORMAS, '2024');
-    expect(result).toEqual(['06_Incidencias_Reformas', 'Facturas', '2024']);
+    expect(result).toEqual(['06_Facturas_Reformas', '2024']);
   });
 
   it('devuelve path sin año para Fotos_Estado', () => {

@@ -9,6 +9,7 @@ import {
 import { listProperties } from '../services/propertyService.js';
 import { downloadTelegramFile } from '../adapters/telegramFileAdapter.js';
 import { uploadBufferToDrive, resolveCategoryFolderId } from '../adapters/driveAdapter.js';
+import { applySnakeCaseToFileName, needsUserProvidedName } from '../utils/fileNaming.js';
 
 export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, botToken }) {
   if (!bot) {
@@ -101,7 +102,7 @@ export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, b
       updateIndividualUploadSessionState(chatId, 'waiting_for_filename', { year: yearValue });
       await bot.answerCallbackQuery(callbackQuery.id);
 
-      if (!session.fileInfo.originalName || session.fileInfo.originalName === 'foto.jpg' || session.fileInfo.originalName === 'video.mp4') {
+      if (needsUserProvidedName(session.fileInfo.originalName)) {
         await bot.sendMessage(
           chatId,
           `${isDev ? 'DEV:: ' : ''}¿Qué nombre quieres darle al archivo?\n\nEnvía el nombre (sin extensión) o "skip" para usar nombre automático:`
@@ -199,7 +200,7 @@ export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, b
 
         updateIndividualUploadSessionState(chatId, 'waiting_for_filename', { year: yearText });
 
-        if (!session.fileInfo.originalName || session.fileInfo.originalName === 'foto.jpg' || session.fileInfo.originalName === 'video.mp4') {
+        if (needsUserProvidedName(session.fileInfo.originalName)) {
           await bot.sendMessage(
             chatId,
             `${isDev ? 'DEV:: ' : ''}¿Qué nombre quieres darle al archivo?\n\nEnvía el nombre (sin extensión) o "skip" para usar nombre automático:`
@@ -215,16 +216,6 @@ export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, b
   };
 }
 
-function toSnakeCase(str) {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^\wñáéíóúü]/gu, '')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-}
-
 async function executeIndividualUpload({ bot, drive, botToken, chatId, session, fileName, isDev }) {
   try {
     await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⏳ Subiendo archivo...`);
@@ -238,10 +229,7 @@ async function executeIndividualUpload({ bot, drive, botToken, chatId, session, 
       categoryPath,
     });
 
-    const lastDotIndex = fileName.lastIndexOf('.');
-    const nameWithoutExt = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
-    const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
-    const finalFileName = toSnakeCase(nameWithoutExt) + extension;
+    const finalFileName = applySnakeCaseToFileName(fileName);
 
     await uploadBufferToDrive({
       drive,
