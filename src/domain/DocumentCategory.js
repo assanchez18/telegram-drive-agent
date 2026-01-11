@@ -15,7 +15,7 @@ export const CATEGORY_FOLDER_MAPPING = {
   [DOCUMENT_CATEGORIES.SEGUROS]: { base: '03_Seguros', requiresYear: true },
   [DOCUMENT_CATEGORIES.SUMINISTROS]: { base: '04_Suministros', requiresYear: true },
   [DOCUMENT_CATEGORIES.COMUNIDAD_IMPUESTOS]: { base: '05_Comunidad_Impuestos', requiresYear: true },
-  [DOCUMENT_CATEGORIES.FACTURAS_REFORMAS]: { base: '06_Incidencias_Reformas/Facturas', requiresYear: true },
+  [DOCUMENT_CATEGORIES.FACTURAS_REFORMAS]: { base: '06_Facturas_Reformas', requiresYear: true },
   [DOCUMENT_CATEGORIES.FOTOS_ESTADO]: { base: '07_Fotos_Estado', requiresYear: false },
   [DOCUMENT_CATEGORIES.OTROS]: { base: '99_Otros', requiresYear: false },
 };

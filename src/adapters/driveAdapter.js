@@ -59,7 +59,7 @@ export async function createFolderStructure({ drive, baseFolderId, propertyAddre
     { name: `03_Seguros/${year}`, path: ['03_Seguros', year] },
     { name: `04_Suministros/${year}`, path: ['04_Suministros', year] },
     { name: `05_Comunidad_Impuestos/${year}`, path: ['05_Comunidad_Impuestos', year] },
-    { name: `06_Incidencias_Reformas/Facturas/${year}`, path: ['06_Incidencias_Reformas', 'Facturas', year] },
+    { name: `06_Facturas_Reformas/${year}`, path: ['06_Facturas_Reformas', year] },
     { name: '07_Fotos_Estado', path: ['07_Fotos_Estado'] },
     { name: '99_Otros', path: ['99_Otros'] },
   ];

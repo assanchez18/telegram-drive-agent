@@ -11,6 +11,7 @@ import {
 import { extractBulkFileInfo } from '../adapters/telegramFileAdapter.js';
 import { uploadBulkFiles, checkDuplicateFiles } from '../services/bulkUploadService.js';
 import { listProperties } from '../services/propertyService.js';
+import { renameFilesForUpload, needsUserProvidedName } from '../utils/fileNaming.js';
 
 export function initializeBulkUploadHandlers({ bot, drive, baseFolderId, botToken, defaultCommands, bulkModeCommands }) {
   if (!bot) {
@@ -298,7 +299,7 @@ Para cancelar: /cancel.`
 }
 
 async function checkIfNeedBaseNameAndConfirm(bot, chatId, session, year, isDev) {
-  const filesWithoutName = session.files.filter(f => !f.fileName || f.fileName.startsWith('photo_') || f.fileName.startsWith('video_'));
+  const filesWithoutName = session.files.filter(f => needsUserProvidedName(f.fileName));
 
   if (filesWithoutName.length > 0) {
     updateBulkSessionState(chatId, 'waiting_for_basename', { year });
@@ -321,7 +322,7 @@ async function confirmBulkUpload(bot, chatId, session, year, isDev) {
 📅 Año: ${year || 'N/A'}`;
 
   if (session.baseName) {
-    const filesWithoutName = session.files.filter(f => !f.fileName || f.fileName.startsWith('photo_') || f.fileName.startsWith('video_'));
+    const filesWithoutName = session.files.filter(f => needsUserProvidedName(f.fileName));
     message += `\n📝 Nombre base: ${session.baseName} (${filesWithoutName.length} archivo${filesWithoutName.length > 1 ? 's' : ''})`;
   }
 
@@ -339,7 +340,7 @@ async function confirmBulkUpload(bot, chatId, session, year, isDev) {
 
 async function checkAndConfirmBulkUpload({ bot, drive, chatId, session, isDev }) {
   try {
-    const filesWithNames = renameFilesWithBaseName(session.files, session.baseName);
+    const filesWithNames = renameFilesForUpload(session.files, session.baseName);
 
     const duplicates = await checkDuplicateFiles({
       drive,
@@ -377,7 +378,7 @@ async function executeBulkUpload({ bot, drive, botToken, chatId, session, isDev 
   try {
     await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⏳ Subiendo archivos...`);
 
-    const filesWithNames = renameFilesWithBaseName(session.files, session.baseName);
+    const filesWithNames = renameFilesForUpload(session.files, session.baseName);
 
     const results = await uploadBulkFiles({
       drive,
@@ -425,52 +426,3 @@ async function executeBulkUpload({ bot, drive, botToken, chatId, session, isDev 
   }
 }
 
-function toSnakeCase(str) {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^\wñáéíóúü]/gu, '')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-}
-
-function renameFilesWithBaseName(files, baseName) {
-  if (!baseName) {
-    return files;
-  }
-
-  const snakeBaseName = toSnakeCase(baseName);
-  let photoCounter = 1;
-  let videoCounter = 1;
-
-  return files.map(file => {
-    if (!file.fileName || file.fileName.startsWith('photo_')) {
-      const extension = file.mimeType.startsWith('image/') ? '.jpg' : 
-                       file.mimeType.startsWith('video/') ? '.mp4' : '';
-      const counter = file.mimeType.startsWith('image/') ? photoCounter++ : videoCounter++;
-      
-      return {
-        ...file,
-        fileName: `${snakeBaseName}_${counter}${extension}`,
-      };
-    }
-
-    if (file.fileName.startsWith('video_')) {
-      const counter = videoCounter++;
-      return {
-        ...file,
-        fileName: `${snakeBaseName}_${counter}.mp4`,
-      };
-    }
-
-    const lastDotIndex = file.fileName.lastIndexOf('.');
-    const nameWithoutExt = lastDotIndex > 0 ? file.fileName.substring(0, lastDotIndex) : file.fileName;
-    const extension = lastDotIndex > 0 ? file.fileName.substring(lastDotIndex) : '';
-    
-    return {
-      ...file,
-      fileName: toSnakeCase(nameWithoutExt) + extension,
-    };
-  });
-}

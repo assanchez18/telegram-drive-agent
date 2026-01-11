@@ -1,6 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
 import path from 'node:path';
+import { extractFileInfo } from './adapters/telegramFileAdapter.js';
 
 export function createTelegramBot(token) {
   // webHook:true porque vamos a procesar updates entrantes
@@ -11,38 +12,20 @@ export function createTelegramBot(token) {
 }
 
 export function extractTelegramFileInfo(msg) {
-  const caption = msg.caption?.trim() || null;
-
-  if (msg.document) {
-    const originalName = caption || msg.document.file_name || 'documento';
-    return {
-      fileId: msg.document.file_id,
-      originalName,
-      mimeType: msg.document.mime_type || 'application/octet-stream',
-    };
+  const fileInfo = extractFileInfo(msg);
+  
+  if (!fileInfo) {
+    return null;
   }
 
-  if (msg.photo?.length) {
-    const best = msg.photo[msg.photo.length - 1];
-    const originalName = caption ? `${caption}.jpg` : 'foto.jpg';
-    return {
-      fileId: best.file_id,
-      originalName,
-      mimeType: 'image/jpeg',
-    };
-  }
-
-  if (msg.video) {
-    const videoFileName = msg.video.file_name || 'video.mp4';
-    const originalName = caption ? `${caption}.mp4` : videoFileName;
-    return {
-      fileId: msg.video.file_id,
-      originalName,
-      mimeType: msg.video.mime_type || 'video/mp4',
-    };
-  }
-
-  return null;
+  return {
+    fileId: fileInfo.fileId,
+    fileUniqueId: fileInfo.fileUniqueId,
+    originalName: fileInfo.fileName || (fileInfo.mimeType.startsWith('image/') ? 'foto.jpg' : 
+                                        fileInfo.mimeType.startsWith('video/') ? 'video.mp4' : 
+                                        'documento'),
+    mimeType: fileInfo.mimeType,
+  };
 }
 
 export async function getFileDownloadStream(bot, botToken, fileId) {

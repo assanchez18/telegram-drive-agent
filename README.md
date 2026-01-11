@@ -139,7 +139,7 @@ DRIVE_FOLDER_ID/
         ├── 03_Seguros/2026/
         ├── 04_Suministros/2026/
         ├── 05_Comunidad_Impuestos/2026/
-        ├── 06_Incidencias_Reformas/Facturas/2026/
+        ├── 06_Facturas_Reformas/2026/
         ├── 07_Fotos_Estado/
         └── 99_Otros/
 ```
