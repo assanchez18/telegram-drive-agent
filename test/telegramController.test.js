@@ -1314,20 +1314,13 @@ describe('initializePropertyHandlers', () => {
       text: '/archive_property',
     });
 
-    await controller.handleTextMessage({
+    const handled = await controller.handleTextMessage({
       chat: { id: 123 },
       from: { id: 456 },
       text: '1',
     });
 
-    mockBot.sendMessage.mockClear();
-
-    await controller.handleTextMessage({
-      chat: { id: 123 },
-      from: { id: 456 },
-      text: 'confirmar',
-    });
-
+    expect(handled).toBe(true);
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123,
       expect.stringContaining('archivada correctamente')
@@ -1499,7 +1492,8 @@ describe('initializePropertyHandlers', () => {
       };
     });
 
-    mockDrive.files.update.mockRejectedValue(new Error('Drive error'));
+    mockDrive.files.list.mockResolvedValueOnce({ data: { files: [] } });
+    mockDrive.files.create.mockRejectedValue(new Error('Drive error'));
 
     const controller = initializePropertyHandlers({
       bot: mockBot,
@@ -1513,20 +1507,13 @@ describe('initializePropertyHandlers', () => {
       text: '/archive_property',
     });
 
-    await controller.handleTextMessage({
+    const handled = await controller.handleTextMessage({
       chat: { id: 123 },
       from: { id: 456 },
       text: '1',
     });
 
-    mockBot.sendMessage.mockClear();
-
-    await controller.handleTextMessage({
-      chat: { id: 123 },
-      from: { id: 456 },
-      text: 'confirmar',
-    });
-
+    expect(handled).toBe(true);
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123,
       expect.stringContaining('Error')
@@ -1580,10 +1567,17 @@ describe('initializePropertyHandlers', () => {
   });
 
   it('handleTextMessage maneja error al reactivar', async () => {
-    mockDrive.files.list.mockResolvedValue({
-      data: {
-        files: [{ id: 'catalog-id', name: '.properties.json' }],
-      },
+    let callCount = 0;
+    mockDrive.files.list.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        };
+      }
+      return { data: { files: [] } };
     });
 
     mockDrive.files.get.mockImplementation(async () => {
@@ -1605,7 +1599,7 @@ describe('initializePropertyHandlers', () => {
       };
     });
 
-    mockDrive.files.update.mockRejectedValue(new Error('Drive error'));
+    mockDrive.files.create.mockRejectedValue(new Error('Drive error'));
 
     const controller = initializePropertyHandlers({
       bot: mockBot,
@@ -1619,20 +1613,13 @@ describe('initializePropertyHandlers', () => {
       text: '/unarchive_property',
     });
 
-    await controller.handleTextMessage({
+    const handled = await controller.handleTextMessage({
       chat: { id: 123 },
       from: { id: 456 },
       text: '1',
     });
 
-    mockBot.sendMessage.mockClear();
-
-    await controller.handleTextMessage({
-      chat: { id: 123 },
-      from: { id: 456 },
-      text: 'confirmar',
-    });
-
+    expect(handled).toBe(true);
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123,
       expect.stringContaining('Error')
@@ -1685,20 +1672,13 @@ describe('initializePropertyHandlers', () => {
       text: '/unarchive_property',
     });
 
-    await controller.handleTextMessage({
+    const handled = await controller.handleTextMessage({
       chat: { id: 123 },
       from: { id: 456 },
       text: '1',
     });
 
-    mockBot.sendMessage.mockClear();
-
-    await controller.handleTextMessage({
-      chat: { id: 123 },
-      from: { id: 456 },
-      text: 'confirmar',
-    });
-
+    expect(handled).toBe(true);
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123,
       expect.stringContaining('reactivada correctamente')

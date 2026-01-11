@@ -110,12 +110,14 @@ Este script lee la URL del tunnel y configura el webhook de Telegram para apunta
 ### Probar en desarrollo
 
 1. Envía `/start` al bot en Telegram para ver los comandos disponibles
-2. Prueba los comandos de gestión de viviendas:
+2. **Autocompletado de comandos**: Al escribir `/`, Telegram mostrará todos los comandos disponibles con sus descripciones
+3. Prueba los comandos de gestión de viviendas:
    - `/add_property` - El bot te pedirá la dirección de la vivienda
    - `/list_properties` - Lista todas las viviendas registradas
-3. Envía un documento o una foto para subirlo a Drive
-4. Los logs aparecerán en la Terminal 1
-5. Los mensajes del bot empezarán con `DEV::` para indicar que estás en modo desarrollo
+   - `/bulk` - Inicia modo de subida en bulk de múltiples archivos
+4. **Subida individual**: Envía un documento, foto o video directamente y el bot te preguntará dónde guardarlo
+5. Los logs aparecerán en la Terminal 1
+6. Los mensajes del bot empezarán con `DEV::` para indicar que estás en modo desarrollo
 
 #### Ejemplo: Añadir una vivienda
 
@@ -187,6 +189,120 @@ Bot: DEV:: 📦 Vivienda "Calle Mayor 123, Madrid" archivada correctamente
 ```
 
 Las viviendas se almacenan en un catálogo persistente (`.properties.json`) en Drive, sin necesidad de base de datos externa.
+
+#### Ejemplo: Subir múltiples archivos en bulk
+
+```
+Usuario: /bulk
+Bot: DEV:: 📦 Modo bulk activado.
+Envía ahora varios documentos o fotos.
+Cuando termines, escribe /bulk_done.
+Para cancelar: /cancel.
+
+Usuario: [envía contrato.pdf]
+Bot: DEV:: ➕ Añadido (1 archivo en cola)
+
+Usuario: [envía recibo_luz.pdf]
+Bot: DEV:: ➕ Añadido (2 archivos en cola)
+
+Usuario: [envía foto_estado.jpg]
+Bot: DEV:: ➕ Añadido (3 archivos en cola)
+
+Usuario: /bulk_done
+Bot: DEV:: ¿A qué vivienda pertenecen?
+[Botones: Calle Mayor 123, Madrid | Avenida Principal 456 | Cancelar]
+
+Usuario: [selecciona "Calle Mayor 123, Madrid"]
+Bot: DEV:: ¿En qué categoría?
+[Botones: Contratos | Inquilinos_Sensible | Seguros | Suministros | Comunidad_Impuestos | Facturas_Reformas | Fotos_Estado | Otros]
+
+Usuario: [selecciona "Contratos"]
+Bot: DEV:: ¿Año?
+[Botones: 2026 ✅ | Otro año | Cancelar]
+
+Usuario: [selecciona "2026 ✅"]
+Bot: DEV:: 📸 Tienes 1 foto/video sin nombre.
+
+¿Qué nombre base quieres usar?
+(Se numerarán automáticamente: nombre_1, nombre_2, etc.)
+
+Envía el nombre o "skip" para usar nombres automáticos:
+
+Usuario: Estado Inicial
+Bot: DEV:: Vas a guardar 3 archivos en:
+
+📍 Vivienda: Calle Mayor 123, Madrid
+📂 Categoría: Contratos
+📅 Año: 2026
+📝 Nombre base: estado_inicial (1 archivo)
+
+¿Confirmar?
+[Botones: Confirmar | Cancelar]
+
+Usuario: [selecciona "Confirmar"]
+Bot: DEV:: ⏳ Subiendo archivos...
+Bot: DEV:: ✅ Subidos 3 archivos
+```
+
+**Características clave del modo bulk:**
+- **Renombrado inteligente**: 
+  - **Caption como nombre**: Si el archivo tiene un caption (texto añadido a la imagen/video/documento), se usa automáticamente como nombre
+  - Documentos con nombre: Se convierten a `snake_case` (ej. "Contrato Alquiler.pdf" → "contrato_alquiler.pdf")
+  - Fotos/videos sin nombre ni caption: Pide nombre base y numera automáticamente (ej. "estado_inicial_1.jpg", "estado_inicial_2.jpg")
+  - Opción "skip": Usa nombres automáticos basados en IDs de Telegram
+- **Snake case automático**: Todos los nombres se convierten a minúsculas con guiones bajos, preservando caracteres españoles (ñ, á, é, í, ó, ú, ü)
+- **Detección de duplicados**: Antes de subir, el bot verifica si algún archivo ya existe y pide confirmación para reemplazar
+- **Errores parciales**: Si falla la subida de un archivo, se reporta pero continúa con los demás
+- **Confirmación obligatoria**: No se sube nada hasta que el usuario confirme el destino
+- **Cancelación en cualquier momento**: El comando `/cancel` limpia la sesión activa
+- **Comandos contextuales**: Al activar `/bulk`, solo se muestran `/bulk_done` y `/cancel` en el autocomplete
+
+#### Ejemplo: Subir un archivo individual
+
+```
+Usuario: [envía foto.jpg]
+Bot: DEV:: ¿A qué vivienda pertenece?
+[Botones: Calle Mayor 123, Madrid | Avenida Principal 456 | Cancelar]
+
+Usuario: [selecciona "Calle Mayor 123, Madrid"]
+Bot: DEV:: ¿En qué categoría?
+[Botones: Contratos | Inquilinos_Sensible | Seguros | ... | Fotos_Estado | Otros]
+
+Usuario: [selecciona "Fotos_Estado"]
+Bot: DEV:: ¿Año?
+[Botones: 2026 ✅ | Otro año | Cancelar]
+
+Usuario: [selecciona "2026 ✅"]
+Bot: DEV:: ¿Qué nombre quieres darle al archivo?
+
+Envía el nombre (sin extensión) o "skip" para usar nombre automático:
+
+Usuario: Estado Inicial Vivienda
+Bot: DEV:: ⏳ Subiendo archivo...
+Bot: DEV:: ✅ Archivo "estado_inicial_vivienda.jpg" subido correctamente en:
+📍 Calle Mayor 123, Madrid
+📂 Fotos_Estado
+📅 N/A
+```
+
+**Características de subida individual:**
+- **Caption como nombre**: Si añades un caption al archivo, se usará automáticamente como nombre (sin preguntar)
+- **Renombrado opcional**: Para fotos y videos sin nombre ni caption, el bot pide un nombre personalizado
+- **Snake case automático**: Todos los nombres se convierten a `snake_case`, preservando ñ y acentos (ej. "Baño Principal" → "baño_principal.jpg")
+- **Documentos**: Si tienen nombre, se suben directamente con conversión a snake_case
+- **Cancelación**: `/cancel` en cualquier momento
+- **Automático**: Si el archivo ya tiene nombre (documentos) o caption, se sube directamente sin preguntar
+
+### Autocompletado de comandos
+
+El bot utiliza el sistema de comandos de Telegram para mostrar autocomplete contextual:
+
+- **Comandos generales**: `/start`, `/help`, `/add_property`, `/list_properties`, `/delete_property`, `/archive`, `/archive_property`, `/list_archived`, `/unarchive_property`, `/bulk`, `/cancel`
+- **Modo bulk activo**: Cuando activas `/bulk`, el autocomplete cambia automáticamente a mostrar solo:
+  - `/bulk_done` - Finalizar la subida en lote
+  - `/cancel` - Cancelar la operación
+
+Al completar o cancelar una operación, los comandos vuelven a la lista completa automáticamente.
 
 ## Despliegue en producción
 
