@@ -12,6 +12,10 @@ import {
   verifyTelegramWebhookSecret,
 } from './security.js';
 import { initializePropertyHandlers } from './controllers/telegramController.js';
+import { initializeBulkUploadHandlers } from './controllers/bulkUploadController.js';
+import { initializeIndividualUploadHandlers } from './controllers/individualUploadController.js';
+import { clearBulkSession } from './repositories/bulkSessionRepository.js';
+import { clearIndividualUploadSession } from './repositories/individualUploadSessionRepository.js';
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -26,10 +30,47 @@ const auth = getDriveAuth();
 const bot = createTelegramBot(BOT_TOKEN);
 const drive = createDriveClient(auth);
 
+const defaultCommands = [
+  { command: 'start', description: 'Mensaje de bienvenida' },
+  { command: 'help', description: 'Mostrar ayuda' },
+  { command: 'add_property', description: 'Añadir nueva vivienda' },
+  { command: 'list_properties', description: 'Listar viviendas activas' },
+  { command: 'delete_property', description: 'Eliminar vivienda' },
+  { command: 'archive', description: 'Menú de archivo' },
+  { command: 'archive_property', description: 'Archivar vivienda' },
+  { command: 'list_archived', description: 'Ver viviendas archivadas' },
+  { command: 'unarchive_property', description: 'Reactivar vivienda' },
+  { command: 'bulk', description: 'Subir varios archivos a la vez' },
+  { command: 'cancel', description: 'Cancelar operación actual' },
+];
+
+const bulkModeCommands = [
+  { command: 'bulk_done', description: 'Finalizar subida bulk' },
+  { command: 'cancel', description: 'Cancelar operación actual' },
+];
+
+await bot.setMyCommands(defaultCommands);
+
 const propertyController = initializePropertyHandlers({
   bot,
   drive,
   baseFolderId: DRIVE_FOLDER_ID,
+});
+
+const bulkUploadController = initializeBulkUploadHandlers({
+  bot,
+  drive,
+  baseFolderId: DRIVE_FOLDER_ID,
+  botToken: BOT_TOKEN,
+  defaultCommands,
+  bulkModeCommands,
+});
+
+const individualUploadController = initializeIndividualUploadHandlers({
+  bot,
+  drive,
+  baseFolderId: DRIVE_FOLDER_ID,
+  botToken: BOT_TOKEN,
 });
 
 const app = express();
@@ -44,6 +85,26 @@ bot.on('message', async (msg) => {
   try {
     if (!isAuthorizedTelegramUser(msg)) {
       await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⛔ No autorizado.`);
+      return;
+    }
+
+    if (msg.text?.startsWith('/cancel')) {
+      clearBulkSession(chatId);
+      clearIndividualUploadSession(chatId);
+      await bot.setMyCommands(defaultCommands, {
+        scope: { type: 'chat', chat_id: chatId },
+      });
+      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}❌ Operación cancelada.`);
+      return;
+    }
+
+    const isBulkHandled = await bulkUploadController.handleBulkMessage(msg);
+    if (isBulkHandled) {
+      return;
+    }
+
+    const isIndividualHandled = await individualUploadController.handleIndividualUploadMessage(msg);
+    if (isIndividualHandled) {
       return;
     }
 
@@ -64,6 +125,9 @@ Gestión de viviendas:
 
 Archivo:
 /archive - Menú de gestión de archivo
+
+Subida de documentos:
+/bulk - Subir varios archivos a la vez
 
 Ayuda:
 /start - Mensaje de bienvenida
@@ -87,11 +151,6 @@ Ayuda:
         return;
       }
 
-      const isHandledByPropertyController = await propertyController.handleTextMessage(msg);
-      if (isHandledByPropertyController) {
-        return;
-      }
-
       await bot.sendMessage(
         chatId,
         `${isDev ? 'DEV:: ' : ''}❓ Comando no reconocido. Usa /help para ver todos los comandos disponibles.`
@@ -99,27 +158,7 @@ Ayuda:
       return;
     }
 
-    await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}📥 Recibido. Subiendo a Google Drive…`);
-
-    // 3) Descargar stream desde Telegram
-    const { stream, fallbackName } = await getFileDownloadStream(
-      bot,
-      BOT_TOKEN,
-      fileInfo.fileId
-    );
-
-    const finalName = fileInfo.originalName || fallbackName;
-
-    // 4) Subir a Drive
-    const uploaded = await uploadStreamToDrive({
-      drive,
-      filename: finalName,
-      mimeType: fileInfo.mimeType,
-      inputStream: stream,
-      parentFolderId: DRIVE_FOLDER_ID,
-    });
-
-    await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}✅ Subido a Drive: ${uploaded.name} (${uploaded.id})`);
+    await individualUploadController.startIndividualUpload(msg, fileInfo);
   } catch (err) {
     console.error('Error procesando mensaje:', err);
     try {
