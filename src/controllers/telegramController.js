@@ -263,6 +263,57 @@ ${statusIcon(checks.catalog.status)} *Catálogo*
     }
   });
 
+  bot.onText(/\/google_login/, async (msg) => {
+    const chatId = msg.chat.id;
+    const isDev = process.env.NODE_ENV === 'development';
+
+    try {
+      const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:8080';
+      const redirectUri = `${baseUrl}/oauth/google/callback`;
+
+      // Enviar confirmación con botones inline
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}🔐 Re-autorización de Google Drive
+
+Este proceso renovará tu token de acceso a Google Drive.
+
+⚠️ Importante:
+• El link expirará en 10 minutos
+• Podrás elegir la cuenta de Google a usar
+• Se actualizará el token automáticamente
+
+💡 Tip: Si quieres usar una cuenta diferente, abre el link en una ventana de incógnito o cierra sesión en Google primero.
+
+📋 Redirect URI que se usará:
+${redirectUri}
+
+⚠️ IMPORTANTE: Este redirect URI debe estar configurado exactamente en Google Cloud Console:
+1. Ve a: console.cloud.google.com/apis/credentials
+2. Selecciona tu OAuth 2.0 Client ID
+3. En "Authorized redirect URIs", agrega el URI exacto mostrado arriba
+
+¿Deseas continuar?`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ Continuar', callback_data: 'google_login_confirm' },
+                { text: '❌ Cancelar', callback_data: 'google_login_cancel' },
+              ],
+            ],
+          },
+        }
+      );
+    } catch (err) {
+      console.error('Error en /google_login:', err);
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}❌ Error iniciando proceso. Revisa los logs.`
+      );
+    }
+  });
+
   return {
     handleTextMessage: async (msg) => {
       const chatId = msg.chat.id;

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import './runtime/appInfo.js'; // Inicializa APP_STARTED_AT al arranque
+import crypto from 'crypto';
 import express from 'express';
 import { getDriveAuth } from './auth.js';
 import { createDriveClient, uploadStreamToDrive } from './drive.js';
@@ -16,9 +17,11 @@ import { initializePropertyHandlers } from './controllers/telegramController.js'
 import { initializeBulkUploadHandlers } from './controllers/bulkUploadController.js';
 import { initializeIndividualUploadHandlers } from './controllers/individualUploadController.js';
 import { initializeSelfTestHandlers } from './controllers/selfTestController.js';
+import { initializeGoogleLoginHandlers } from './controllers/googleLoginController.js';
 import { clearBulkSession } from './repositories/bulkSessionRepository.js';
 import { clearIndividualUploadSession } from './repositories/individualUploadSessionRepository.js';
 import { handleTelegramMessage } from './messageHandler.js';
+import { createOAuthRouter } from './routes/oauthRoutes.js';
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -45,6 +48,7 @@ const defaultCommands = [
   { command: 'unarchive_property', description: 'Reactivar vivienda' },
   { command: 'bulk', description: 'Subir varios archivos a la vez' },
   { command: 'self_test', description: 'Ejecutar self-test del sistema (admin only)' },
+  { command: 'google_login', description: 'Re-autorizar Google Drive' },
   { command: 'version', description: 'Ver información de versión' },
   { command: 'status', description: 'Ver estado del sistema' },
   { command: 'cancel', description: 'Cancelar operación actual' },
@@ -85,8 +89,49 @@ const selfTestController = initializeSelfTestHandlers({
   baseFolderId: DRIVE_FOLDER_ID,
 });
 
+// Configuración para OAuth (re-autorización Google)
+const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || crypto.randomBytes(32).toString('hex');
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // Opcional en desarrollo, obligatorio en producción
+const GOOGLE_OAUTH_CLIENT_JSON = process.env.GOOGLE_OAUTH_CLIENT_JSON;
+const GOOGLE_TOKEN_SECRET_NAME = process.env.GOOGLE_TOKEN_SECRET_NAME || 'GOOGLE_OAUTH_TOKEN_JSON';
+
+if (!OAUTH_STATE_SECRET || OAUTH_STATE_SECRET.length < 32) {
+  console.warn('⚠️  OAUTH_STATE_SECRET no configurado o demasiado corto. Usando valor temporal (no usar en producción).');
+}
+
 const app = express();
 app.use(express.json({ limit: '20mb' }));
+
+const port = process.env.PORT || 8080;
+const isDev = process.env.NODE_ENV === 'development';
+
+// Inicializar Google Login handlers si está configurado
+if (GOOGLE_OAUTH_CLIENT_JSON) {
+  initializeGoogleLoginHandlers({
+    bot,
+    oauthClientJson: GOOGLE_OAUTH_CLIENT_JSON,
+    stateSecret: OAUTH_STATE_SECRET,
+    baseUrl: PUBLIC_BASE_URL,
+    port,
+  });
+  console.log('✅ Google Login habilitado');
+} else {
+  console.warn('⚠️  GOOGLE_OAUTH_CLIENT_JSON no configurado. /google_login no estará disponible.');
+}
+
+// Montar rutas OAuth si está configurado
+if (GOOGLE_OAUTH_CLIENT_JSON) {
+  const oauthRouter = createOAuthRouter({
+    oauthClientJson: GOOGLE_OAUTH_CLIENT_JSON,
+    stateSecret: OAUTH_STATE_SECRET,
+    baseUrl: PUBLIC_BASE_URL,
+    port,
+    secretName: GOOGLE_TOKEN_SECRET_NAME,
+    bot,
+  });
+  app.use('/oauth', oauthRouter);
+  console.log('✅ OAuth routes montadas en /oauth');
+}
 
 // Procesamiento de mensajes (misma lógica que en polling, pero ahora
 // se disparará cuando lleguen updates vía webhook)
@@ -133,9 +178,6 @@ app.post('/telegram/webhook', (req, res) => {
     return res.status(500).send('Error');
   }
 });
-
-const port = process.env.PORT || 8080;
-const isDev = process.env.NODE_ENV === 'development';
 
 app.listen(port, () => {
   console.log(`🚀 Webhook server escuchando en :${port}`);

@@ -65,6 +65,7 @@ Subida de documentos:
 
 Sistema:
 /self_test - Verificar sistema completo (test end-to-end)
+/google_login - Re-autorizar Google Drive
 /version - Ver información de versión
 /status - Ver estado del sistema
 
@@ -102,6 +103,7 @@ Ayuda:
       '/bulk',
       '/bulk_done',
       '/self_test',
+      '/google_login',
       '/version',
       '/status',
     ];

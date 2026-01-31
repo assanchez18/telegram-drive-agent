@@ -227,6 +227,23 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
 
       expect(mockBot.sendMessage).not.toHaveBeenCalled();
     });
+
+    it('/google_login - NO debe ejecutar fallback', async () => {
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/google_login',
+      };
+
+      await handleTelegramMessage({
+        msg,
+        bot: mockBot,
+        ...mockHelpers,
+        ...mockControllers,
+      });
+
+      expect(mockBot.sendMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe('Comandos manejados en messageHandler', () => {
@@ -253,6 +270,7 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
       const helpMessage = mockBot.sendMessage.mock.calls[0][1];
       expect(helpMessage).toContain('/version');
       expect(helpMessage).toContain('/status');
+      expect(helpMessage).toContain('/google_login');
     });
 
     it('/start - debe responder UNA VEZ con mensaje de ayuda', async () => {

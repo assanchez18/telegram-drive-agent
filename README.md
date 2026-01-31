@@ -57,6 +57,7 @@ Las siguientes variables deben configurarse en Secret Manager o como variables d
 | `DRIVE_FOLDER_ID` | ID de la carpeta de Google Drive donde se subirán archivos | `1a2b3c4d5e6f7g8h9i0j` |
 | `GOOGLE_OAUTH_CLIENT_JSON` | JSON con credenciales OAuth de Google Cloud Console | `{"installed":{"client_id":"...","client_secret":"..."}}` |
 | `GOOGLE_OAUTH_TOKEN_JSON` | JSON con el refresh token de OAuth | `{"access_token":"...","refresh_token":"..."}` |
+| `USE_SECRET_MANAGER` | Si debe usar Secret Manager para guardar tokens (default: `true` en prod, `false` en dev) | `true` |
 | `PORT` | Puerto del servidor (auto-asignado por Cloud Run) | `8080` |
 
 ### Desarrollo local
@@ -590,16 +591,207 @@ Bot: 🔍 Ejecutando diagnóstico del sistema...
 └── README.md                             # Este archivo
 ```
 
-## Flujo de autorización OAuth (primera vez)
+## Configuración de Google OAuth 2.0
 
-Para obtener el refresh token de Google Drive:
+### 1. Crear credenciales OAuth en Google Cloud Console
 
-1. Crea credenciales OAuth 2.0 en Google Cloud Console
-2. Descarga el JSON de credenciales
-3. Ejecuta el flujo de autorización (script separado, no incluido en este README)
-4. Guarda el token JSON resultante en Secret Manager o como variable de entorno
+1. Ve a [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials)
+2. Selecciona o crea un proyecto
+3. Haz clic en **"+ CREATE CREDENTIALS"** → **"OAuth client ID"**
+4. Tipo de aplicación: **"Web application"**
+5. Nombre: `Telegram Drive Agent` (o el que prefieras)
 
-Una vez configurado, el bot usará el refresh token automáticamente sin necesidad de intervención manual.
+### 2. Configurar Authorized redirect URIs
+
+**⚠️ CRÍTICO:** Debes agregar TODOS los redirect URIs que usará tu aplicación. El redirect URI debe coincidir EXACTAMENTE (scheme, host, puerto, path) con el que envía tu app.
+
+**Agrega estos redirect URIs en Google Cloud Console:**
+
+**Desarrollo local (sin cloudflared):**
+```
+http://localhost:8080/oauth/google/callback
+```
+
+**Desarrollo local con cloudflared (opcional):**
+```
+https://tu-tunnel-url.trycloudflare.com/oauth/google/callback
+```
+
+**Producción en Cloud Run:**
+```
+https://tu-servicio.run.app/oauth/google/callback
+```
+
+**Pasos:**
+1. En la sección **"Authorized redirect URIs"**, haz clic en **"+ ADD URI"**
+2. Agrega TODOS los URIs que usarás (local + producción)
+3. Cada URI debe ser exacto: `http://localhost:8080/oauth/google/callback` (con puerto)
+4. Guarda los cambios
+
+**Nota importante sobre puertos:** Si cambias el puerto local (ej: `PORT=3000`), debes agregar el nuevo redirect URI: `http://localhost:3000/oauth/google/callback`
+
+### 3. Descargar credenciales
+
+1. Una vez creado el OAuth client, descarga el JSON haciendo clic en el icono de descarga
+2. El JSON tendrá esta estructura:
+```json
+{
+  "web": {
+    "client_id": "123456789-abcdefg.apps.googleusercontent.com",
+    "client_secret": "GOCSPX-abc123xyz",
+    "redirect_uris": ["https://tu-url.com/oauth/google/callback"],
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token"
+  }
+}
+```
+
+### 4. Configurar variables de entorno
+
+#### Variable `PUBLIC_BASE_URL`
+
+Esta variable determina qué redirect URI usará la aplicación:
+
+- **Desarrollo local SIN cloudflared**: NO configurar (usa fallback `http://localhost:PORT`)
+- **Desarrollo local CON cloudflared**: Configurar con la URL del tunnel
+- **Producción**: **OBLIGATORIO** - URL pública de Cloud Run
+
+**Desarrollo local (puerto por defecto 8080):**
+```bash
+# .env
+GOOGLE_OAUTH_CLIENT_JSON='{"web":{"client_id":"...","client_secret":"..."}}'
+# PUBLIC_BASE_URL no configurado → usa http://localhost:8080
+PORT=8080  # Opcional, por defecto es 8080
+OAUTH_STATE_SECRET="genera-un-secret-aleatorio-de-32-chars-o-mas"
+```
+
+**Desarrollo local con cloudflared:**
+```bash
+# .env
+GOOGLE_OAUTH_CLIENT_JSON='{"web":{"client_id":"...","client_secret":"..."}}'
+PUBLIC_BASE_URL="https://tu-tunnel-url.trycloudflare.com"
+OAUTH_STATE_SECRET="genera-un-secret-aleatorio-de-32-chars-o-mas"
+```
+
+**Producción (Cloud Run):**
+```bash
+# Variables de entorno en Cloud Run o Secret Manager
+GOOGLE_OAUTH_CLIENT_JSON='{"web":{"client_id":"...","client_secret":"..."}}'
+PUBLIC_BASE_URL="https://tu-servicio.run.app"  # OBLIGATORIO
+OAUTH_STATE_SECRET="secret-aleatorio-seguro"
+GOOGLE_TOKEN_SECRET_NAME="GOOGLE_OAUTH_TOKEN_JSON"
+PORT=8080  # Auto-asignado por Cloud Run
+```
+
+**Cómo funciona el redirect URI:**
+```javascript
+// Código simplificado
+if (PUBLIC_BASE_URL) {
+  redirect_uri = `${PUBLIC_BASE_URL}/oauth/google/callback`
+} else {
+  redirect_uri = `http://localhost:${PORT}/oauth/google/callback`
+}
+```
+
+### 5. Autorizar la aplicación (primera vez o re-autorizar)
+
+Una vez configurado todo:
+
+1. Inicia el bot (desarrollo: `npm run dev`, producción: está corriendo en Cloud Run)
+2. Envía `/google_login` al bot en Telegram
+3. El bot te mostrará el redirect URI que usará
+4. **Verifica que coincida exactamente** con el configurado en Google Cloud Console
+5. Haz clic en **"✅ Continuar"**
+6. Haz clic en el link de autorización
+7. Selecciona tu cuenta de Google
+8. Autoriza el acceso a Google Drive
+9. Serás redirigido de vuelta y el bot confirmará que el token se actualizó
+
+#### Almacenamiento del Token
+
+El token OAuth se guarda de forma diferente según el entorno:
+
+**Desarrollo local (`NODE_ENV=development` o `USE_SECRET_MANAGER=false`):**
+- Se guarda en: `./secrets/GOOGLE_OAUTH_TOKEN_JSON.local.json`
+- El directorio `./secrets/` está en `.gitignore` (no se commitea)
+- Puedes ver el archivo para debugging
+- **Seguridad:** No compartas este archivo, contiene credenciales de acceso
+
+**Producción (`NODE_ENV=production` o `USE_SECRET_MANAGER=true`):**
+- Se guarda en: Google Secret Manager
+- Ubicación: `projects/{project-id}/secrets/GOOGLE_OAUTH_TOKEN_JSON/versions/{latest}`
+- Requiere permisos: `secretmanager.versions.add`
+- Automáticamente versionado y cifrado
+
+**Configuración manual (override):**
+```bash
+# Forzar uso de archivo local incluso en producción (NO recomendado)
+USE_SECRET_MANAGER=false
+
+# Forzar uso de Secret Manager en desarrollo (requiere permisos)
+USE_SECRET_MANAGER=true
+```
+
+**Nota:** El comando `/google_login` permite re-autorizar en cualquier momento sin necesidad de acceso al servidor. El token se guarda automáticamente según la configuración del entorno.
+
+### Solución de problemas OAuth
+
+#### Error: "redirect_uri_mismatch" o "Error 400: invalid_request"
+
+**Causa:** El redirect URI enviado por la app NO coincide EXACTAMENTE con los configurados en Google Cloud Console.
+
+**Diagnóstico:**
+Revisa los logs del servidor. Deberías ver:
+```
+[GoogleReauth] Using redirect URI: http://localhost:8080/oauth/google/callback
+```
+
+**Solución:**
+1. **Identifica el redirect URI usado:**
+   - Revisa los logs del servidor
+   - O ejecuta `/google_login` en Telegram (en versiones futuras mostrará el URI)
+
+2. **Verifica la configuración:**
+   - Desarrollo local SIN cloudflared → `http://localhost:8080/oauth/google/callback`
+   - Desarrollo local CON cloudflared → `https://tu-tunnel.trycloudflare.com/oauth/google/callback`
+   - Producción Cloud Run → `https://tu-app.run.app/oauth/google/callback`
+
+3. **Agrega el URI exacto en Google Cloud Console:**
+   - Ve a [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials)
+   - Edita tu OAuth 2.0 Client ID
+   - En "Authorized redirect URIs", agrega el URI EXACTO (incluyendo `http://` vs `https://` y puerto)
+   - Guarda y espera 1-2 minutos
+
+4. **Reinicia el servidor** (para que tome las nuevas variables de entorno)
+
+**Ejemplo de configuración correcta:**
+```
+Authorized redirect URIs en Google Cloud Console:
+✅ http://localhost:8080/oauth/google/callback        (desarrollo local)
+✅ https://my-app-123.run.app/oauth/google/callback   (producción)
+
+Variables de entorno:
+Desarrollo: PUBLIC_BASE_URL no configurado (usa fallback localhost:8080)
+Producción: PUBLIC_BASE_URL=https://my-app-123.run.app
+```
+
+#### Error: "Required parameter is missing: response_type"
+
+**Causa:** Problema con la generación de la URL de autorización o configuración incorrecta del OAuth client.
+
+**Solución:**
+1. Verifica que `GOOGLE_OAUTH_CLIENT_JSON` tenga la estructura correcta con las claves `client_id` y `client_secret`
+2. Asegúrate de que `PUBLIC_BASE_URL` esté configurado correctamente (sin barra al final)
+3. Revisa los logs del servidor para ver la URL generada
+
+#### El bot no muestra el comando /google_login
+
+**Causa:** `GOOGLE_OAUTH_CLIENT_JSON` no está configurado.
+
+**Solución:**
+1. Configura la variable de entorno `GOOGLE_OAUTH_CLIENT_JSON` con el JSON de credenciales
+2. Reinicia el servidor
+3. Verifica en los logs que veas: `✅ Google Login habilitado`
 
 ## Seguridad
 
