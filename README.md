@@ -399,6 +399,61 @@ Se excluyen de coverage:
 | `/archive_property` | Archiva una vivienda activa. La mueve del catálogo principal a la carpeta "Archivo" en Drive. La vivienda se puede reactivar más tarde |
 | `/list_archived` | Muestra la lista de todas las viviendas archivadas, ordenadas alfabéticamente |
 | `/unarchive_property` | Reactiva una vivienda archivada. La mueve de vuelta a la carpeta "Viviendas" en Drive y la añade al catálogo activo |
+| `/bulk` | Inicia modo de subida en bulk. Permite enviar múltiples archivos seguidos y luego confirmar con `/bulk_done` para procesarlos todos a la vez |
+| `/self_test` | Ejecuta un test end-to-end del sistema completo. Verifica todas las operaciones críticas: crear propiedad, verificar estructura de carpetas, subir archivos, archivar, reactivar y eliminar. Requiere confirmación previa. Disponible para todos los usuarios autorizados |
+| `/cancel` | Cancela la operación actual en curso |
+
+### Self-Test
+
+El comando `/self_test` está diseñado para verificar que todos los sistemas funcionan correctamente en producción. Cualquier usuario autorizado puede ejecutarlo.
+
+**Qué hace el self-test:**
+
+1. Verifica el listado de propiedades
+2. Crea una propiedad de prueba única (nombre: `Self-Test-{timestamp}`)
+3. Verifica que se crearon las 8 carpetas de categorías correctamente
+4. Sube 2 archivos de prueba (foto + PDF) a diferentes categorías
+5. Archiva la propiedad de prueba
+6. Reactiva la propiedad de prueba
+7. Elimina la propiedad de prueba (cleanup)
+
+**Duración estimada:** 30-60 segundos
+
+El comando requiere confirmación antes de ejecutarse y muestra el progreso paso a paso con indicadores de éxito (✅) o fallo (❌).
+
+**Ejemplo de uso:**
+
+```
+Usuario: /self_test
+Bot: 🔍 Self-Test del Sistema
+
+Este comando ejecutará un test end-to-end que:
+1. Verificará el listado de propiedades
+2. Creará una propiedad de prueba
+...
+
+⏱️ Duración estimada: 30-60 segundos
+
+¿Confirmas ejecutar el self-test?
+
+[✅ Confirmar] [❌ Cancelar]
+
+Usuario: (presiona Confirmar)
+Bot: 🔍 Ejecutando self-test...
+
+Paso 1/7: Verificar listado de propiedades
+✅ OK
+   0 propiedades encontradas
+
+Paso 2/7: Crear propiedad de prueba
+✅ OK
+   Propiedad "Self-Test-1234567890" creada
+...
+
+✅ Self-Test exitoso - Todos los sistemas funcionando correctamente
+```
+
+Si algo falla durante el test, el sistema intenta hacer cleanup automáticamente (eliminar la propiedad de prueba).
 
 ## Estructura del proyecto
 

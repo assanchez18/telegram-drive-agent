@@ -53,7 +53,7 @@ export async function addProperty({ drive, baseFolderId, address }) {
     },
   });
 
-  return { success: true, message: `✅ Vivienda "${address}" creada con éxito` };
+  return { success: true, message: `✅ Vivienda "${address}" creada con éxito`, normalizedAddress };
 }
 
 export async function listProperties({ drive, baseFolderId }) {

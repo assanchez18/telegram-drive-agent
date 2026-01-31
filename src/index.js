@@ -14,8 +14,10 @@ import {
 import { initializePropertyHandlers } from './controllers/telegramController.js';
 import { initializeBulkUploadHandlers } from './controllers/bulkUploadController.js';
 import { initializeIndividualUploadHandlers } from './controllers/individualUploadController.js';
+import { initializeSelfTestHandlers } from './controllers/selfTestController.js';
 import { clearBulkSession } from './repositories/bulkSessionRepository.js';
 import { clearIndividualUploadSession } from './repositories/individualUploadSessionRepository.js';
+import { handleTelegramMessage } from './messageHandler.js';
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -41,6 +43,7 @@ const defaultCommands = [
   { command: 'list_archived', description: 'Ver viviendas archivadas' },
   { command: 'unarchive_property', description: 'Reactivar vivienda' },
   { command: 'bulk', description: 'Subir varios archivos a la vez' },
+  { command: 'self_test', description: 'Ejecutar self-test del sistema (admin only)' },
   { command: 'cancel', description: 'Cancelar operación actual' },
 ];
 
@@ -73,6 +76,12 @@ const individualUploadController = initializeIndividualUploadHandlers({
   botToken: BOT_TOKEN,
 });
 
+const selfTestController = initializeSelfTestHandlers({
+  bot,
+  drive,
+  baseFolderId: DRIVE_FOLDER_ID,
+});
+
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 
@@ -83,82 +92,18 @@ bot.on('message', async (msg) => {
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
-    if (!isAuthorizedTelegramUser(msg)) {
-      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⛔ No autorizado.`);
-      return;
-    }
-
-    if (msg.text?.startsWith('/cancel')) {
-      clearBulkSession(chatId);
-      clearIndividualUploadSession(chatId);
-      await bot.setMyCommands(defaultCommands, {
-        scope: { type: 'chat', chat_id: chatId },
-      });
-      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}❌ Operación cancelada.`);
-      return;
-    }
-
-    const isBulkHandled = await bulkUploadController.handleBulkMessage(msg);
-    if (isBulkHandled) {
-      return;
-    }
-
-    const isIndividualHandled = await individualUploadController.handleIndividualUploadMessage(msg);
-    if (isIndividualHandled) {
-      return;
-    }
-
-    const isHandled = await propertyController.handleTextMessage(msg);
-    if (isHandled) {
-      return;
-    }
-
-    const fileInfo = extractTelegramFileInfo(msg);
-
-    if (!fileInfo) {
-      const helpMessage = `${isDev ? 'DEV:: ' : ''}📋 Todos los comandos disponibles:
-
-Gestión de viviendas:
-/add_property - Añadir nueva vivienda
-/list_properties - Listar viviendas activas
-/delete_property - Eliminar vivienda permanentemente
-
-Archivo:
-/archive - Menú de gestión de archivo
-
-Subida de documentos:
-/bulk - Subir varios archivos a la vez
-
-Ayuda:
-/start - Mensaje de bienvenida
-/help - Mostrar esta ayuda`;
-
-      if (msg.text?.startsWith('/start')) {
-        await bot.sendMessage(chatId, helpMessage);
-        return;
-      }
-      
-      if (msg.text?.startsWith('/archive') && msg.text === '/archive') {
-        await bot.sendMessage(
-          chatId,
-          `${isDev ? 'DEV:: ' : ''}📦 Gestión de archivo:\n\n/archive_property - Archivar vivienda activa\n/list_archived - Ver viviendas archivadas\n/unarchive_property - Reactivar vivienda archivada`
-        );
-        return;
-      }
-
-      if (msg.text?.startsWith('/help')) {
-        await bot.sendMessage(chatId, helpMessage);
-        return;
-      }
-
-      await bot.sendMessage(
-        chatId,
-        `${isDev ? 'DEV:: ' : ''}❓ Comando no reconocido. Usa /help para ver todos los comandos disponibles.`
-      );
-      return;
-    }
-
-    await individualUploadController.startIndividualUpload(msg, fileInfo);
+    await handleTelegramMessage({
+      msg,
+      bot,
+      isAuthorizedTelegramUser,
+      clearBulkSession,
+      clearIndividualUploadSession,
+      bulkUploadController,
+      individualUploadController,
+      propertyController,
+      extractTelegramFileInfo,
+      defaultCommands,
+    });
   } catch (err) {
     console.error('Error procesando mensaje:', err);
     try {
