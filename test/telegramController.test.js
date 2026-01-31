@@ -1468,32 +1468,43 @@ describe('initializePropertyHandlers', () => {
   });
 
   it('handleTextMessage maneja error al archivar', async () => {
-    mockDrive.files.list.mockResolvedValue({
-      data: {
-        files: [{ id: 'catalog-id', name: '.properties.json' }],
-      },
+    let callCount = 0;
+    mockDrive.files.list.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        };
+      }
+      return { data: { files: [] } };
     });
 
+    let getCallCount = 0;
     mockDrive.files.get.mockImplementation(async () => {
-      return {
-        data: JSON.stringify({
-          version: 1,
-          updatedAt: '2024-01-01T00:00:00.000Z',
-          properties: [
-            {
-              address: 'Calle Test 1',
-              normalizedAddress: 'Calle Test 1',
-              propertyFolderId: 'folder-1',
-              createdAt: '2024-01-01T00:00:00.000Z',
-              status: 'active',
-            },
-          ],
-        }),
-      };
+      getCallCount++;
+      if (getCallCount === 1) {
+        return {
+          data: JSON.stringify({
+            version: 1,
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            properties: [
+              {
+                address: 'Calle Test 1',
+                normalizedAddress: 'Calle Test 1',
+                propertyFolderId: 'folder-1',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                status: 'active',
+              },
+            ],
+          }),
+        };
+      }
+      throw new Error('Drive error during update');
     });
 
-    mockDrive.files.list.mockResolvedValueOnce({ data: { files: [] } });
-    mockDrive.files.create.mockRejectedValue(new Error('Drive error'));
+    mockDrive.files.update.mockRejectedValue(new Error('Update failed'));
 
     const controller = initializePropertyHandlers({
       bot: mockBot,
@@ -1514,10 +1525,8 @@ describe('initializePropertyHandlers', () => {
     });
 
     expect(handled).toBe(true);
-    expect(mockBot.sendMessage).toHaveBeenCalledWith(
-      123,
-      expect.stringContaining('Error')
-    );
+    const lastCall = mockBot.sendMessage.mock.calls[mockBot.sendMessage.mock.calls.length - 1];
+    expect(lastCall[1]).toContain('Error al archivar');
   });
 
   it('/list_archived maneja error al listar', async () => {
@@ -1685,4 +1694,54 @@ describe('initializePropertyHandlers', () => {
     );
   });
 
+  it('/unarchive_property muestra mensaje cuando no hay viviendas archivadas', async () => {
+    mockDrive.files.list.mockResolvedValue({
+      data: {
+        files: [{ id: 'catalog-id', name: '.properties.json' }],
+      },
+    });
+
+    mockDrive.files.get.mockResolvedValue({
+      data: JSON.stringify({
+        version: 1,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        properties: [],
+      }),
+    });
+
+    initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const msg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/unarchive_property',
+    };
+
+    await commandHandlers.unarchive_property(msg);
+
+    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining('No hay viviendas archivadas')
+    );
+  });
+
+  it('handleTextMessage devuelve false cuando no hay estado de usuario', async () => {
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    const handled = await controller.handleTextMessage({
+      chat: { id: 123 },
+      from: { id: 999 },
+      text: 'random text',
+    });
+
+    expect(handled).toBe(false);
+  });
 });

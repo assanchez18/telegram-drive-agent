@@ -217,4 +217,23 @@ describe('extractBulkFileInfo', () => {
       mimeType: 'video/mp4',
     });
   });
+
+  it('usa mime type por defecto para video si no está presente', () => {
+    const msg = {
+      video: {
+        file_id: 'video-999',
+        file_unique_id: 'unique-video-999',
+        file_name: 'video.avi',
+      },
+    };
+
+    const result = extractBulkFileInfo(msg);
+
+    expect(result).toEqual({
+      fileId: 'video-999',
+      fileUniqueId: 'unique-video-999',
+      fileName: 'video.avi',
+      mimeType: 'video/mp4',
+    });
+  });
 });

@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { findOrCreateFolder, createFolderStructure, deleteFolder, moveFolder } from '../src/adapters/driveAdapter.js';
+import {
+  findOrCreateFolder,
+  createFolderStructure,
+  deleteFolder,
+  moveFolder,
+  uploadBufferToDrive,
+  resolveCategoryFolderId,
+  checkFileExists,
+  checkMultipleFilesExist,
+} from '../src/adapters/driveAdapter.js';
 
 describe('findOrCreateFolder', () => {
   it('devuelve carpeta existente si se encuentra', async () => {
@@ -369,5 +378,342 @@ describe('moveFolder', () => {
     await expect(
       moveFolder({ drive: mockDrive, folderId: 'folder-id', newParentId: '' })
     ).rejects.toThrow('New parent ID is required');
+  });
+});
+
+describe('uploadBufferToDrive', () => {
+  it('sube archivo exitosamente', async () => {
+    const mockDrive = {
+      files: {
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'uploaded-file-id', name: 'test.pdf' },
+        }),
+      },
+    };
+
+    const buffer = Buffer.from('file content');
+    const result = await uploadBufferToDrive({
+      drive: mockDrive,
+      buffer,
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      folderId: 'folder-123',
+    });
+
+    expect(result).toEqual({ id: 'uploaded-file-id', name: 'test.pdf' });
+    expect(mockDrive.files.create).toHaveBeenCalledWith({
+      requestBody: {
+        name: 'test.pdf',
+        parents: ['folder-123'],
+      },
+      media: {
+        mimeType: 'application/pdf',
+        body: expect.any(Object),
+      },
+      fields: 'id, name',
+    });
+  });
+
+  it('lanza error si falta drive', async () => {
+    await expect(
+      uploadBufferToDrive({
+        buffer: Buffer.from('test'),
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        folderId: 'folder-123',
+      })
+    ).rejects.toThrow('Drive client is required');
+  });
+
+  it('lanza error si falta buffer', async () => {
+    await expect(
+      uploadBufferToDrive({
+        drive: {},
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        folderId: 'folder-123',
+      })
+    ).rejects.toThrow('Buffer is required');
+  });
+
+  it('lanza error si falta fileName', async () => {
+    await expect(
+      uploadBufferToDrive({
+        drive: {},
+        buffer: Buffer.from('test'),
+        mimeType: 'application/pdf',
+        folderId: 'folder-123',
+      })
+    ).rejects.toThrow('File name is required');
+  });
+
+  it('lanza error si falta mimeType', async () => {
+    await expect(
+      uploadBufferToDrive({
+        drive: {},
+        buffer: Buffer.from('test'),
+        fileName: 'test.pdf',
+        folderId: 'folder-123',
+      })
+    ).rejects.toThrow('MIME type is required');
+  });
+
+  it('lanza error si falta folderId', async () => {
+    await expect(
+      uploadBufferToDrive({
+        drive: {},
+        buffer: Buffer.from('test'),
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+      })
+    ).rejects.toThrow('Folder ID is required');
+  });
+});
+
+describe('resolveCategoryFolderId', () => {
+  it('resuelve ruta de carpetas anidadas', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn()
+          .mockResolvedValueOnce({ data: { id: 'folder-1', name: '01_Contratos' } })
+          .mockResolvedValueOnce({ data: { id: 'folder-2', name: '2025' } }),
+      },
+    };
+
+    const result = await resolveCategoryFolderId({
+      drive: mockDrive,
+      propertyFolderId: 'property-123',
+      categoryPath: ['01_Contratos', '2025'],
+    });
+
+    expect(result).toBe('folder-2');
+    expect(mockDrive.files.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('reutiliza carpetas existentes', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn()
+          .mockResolvedValueOnce({ data: { files: [{ id: 'existing-1', name: '01_Contratos' }] } })
+          .mockResolvedValueOnce({ data: { files: [{ id: 'existing-2', name: '2025' }] } }),
+        create: vi.fn(),
+      },
+    };
+
+    const result = await resolveCategoryFolderId({
+      drive: mockDrive,
+      propertyFolderId: 'property-123',
+      categoryPath: ['01_Contratos', '2025'],
+    });
+
+    expect(result).toBe('existing-2');
+    expect(mockDrive.files.create).not.toHaveBeenCalled();
+  });
+
+  it('lanza error si falta drive', async () => {
+    await expect(
+      resolveCategoryFolderId({
+        propertyFolderId: 'property-123',
+        categoryPath: ['01_Contratos'],
+      })
+    ).rejects.toThrow('Drive client is required');
+  });
+
+  it('lanza error si falta propertyFolderId', async () => {
+    await expect(
+      resolveCategoryFolderId({
+        drive: {},
+        categoryPath: ['01_Contratos'],
+      })
+    ).rejects.toThrow('Property folder ID is required');
+  });
+
+  it('lanza error si categoryPath no es array', async () => {
+    await expect(
+      resolveCategoryFolderId({
+        drive: {},
+        propertyFolderId: 'property-123',
+        categoryPath: 'not-an-array',
+      })
+    ).rejects.toThrow('Category path must be an array');
+  });
+
+  it('lanza error si categoryPath es null', async () => {
+    await expect(
+      resolveCategoryFolderId({
+        drive: {},
+        propertyFolderId: 'property-123',
+        categoryPath: null,
+      })
+    ).rejects.toThrow('Category path must be an array');
+  });
+});
+
+describe('checkFileExists', () => {
+  it('devuelve true si el archivo existe', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: { files: [{ id: 'file-123', name: 'test.pdf' }] },
+        }),
+      },
+    };
+
+    const result = await checkFileExists({
+      drive: mockDrive,
+      folderId: 'folder-123',
+      fileName: 'test.pdf',
+    });
+
+    expect(result).toBe(true);
+    expect(mockDrive.files.list).toHaveBeenCalledWith({
+      q: "name='test.pdf' and 'folder-123' in parents and trashed=false",
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
+  });
+
+  it('devuelve false si el archivo no existe', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: { files: [] },
+        }),
+      },
+    };
+
+    const result = await checkFileExists({
+      drive: mockDrive,
+      folderId: 'folder-123',
+      fileName: 'test.pdf',
+    });
+
+    expect(result).toBe(false);
+  });
+
+  it('escapa comillas simples en nombre de archivo', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: { files: [] },
+        }),
+      },
+    };
+
+    await checkFileExists({
+      drive: mockDrive,
+      folderId: 'folder-123',
+      fileName: "file's name.pdf",
+    });
+
+    expect(mockDrive.files.list).toHaveBeenCalledWith({
+      q: "name='file\\'s name.pdf' and 'folder-123' in parents and trashed=false",
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
+  });
+
+  it('lanza error si falta drive', async () => {
+    await expect(
+      checkFileExists({
+        folderId: 'folder-123',
+        fileName: 'test.pdf',
+      })
+    ).rejects.toThrow('Drive client is required');
+  });
+
+  it('lanza error si falta folderId', async () => {
+    await expect(
+      checkFileExists({
+        drive: {},
+        fileName: 'test.pdf',
+      })
+    ).rejects.toThrow('Folder ID is required');
+  });
+
+  it('lanza error si falta fileName', async () => {
+    await expect(
+      checkFileExists({
+        drive: {},
+        folderId: 'folder-123',
+      })
+    ).rejects.toThrow('File name is required');
+  });
+});
+
+describe('checkMultipleFilesExist', () => {
+  it('devuelve lista de archivos existentes', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn()
+          .mockResolvedValueOnce({ data: { files: [{ id: 'file-1', name: 'test1.pdf' }] } })
+          .mockResolvedValueOnce({ data: { files: [] } })
+          .mockResolvedValueOnce({ data: { files: [{ id: 'file-3', name: 'test3.pdf' }] } }),
+      },
+    };
+
+    const result = await checkMultipleFilesExist({
+      drive: mockDrive,
+      folderId: 'folder-123',
+      fileNames: ['test1.pdf', 'test2.pdf', 'test3.pdf'],
+    });
+
+    expect(result).toEqual(['test1.pdf', 'test3.pdf']);
+    expect(mockDrive.files.list).toHaveBeenCalledTimes(3);
+  });
+
+  it('devuelve array vacío si ningún archivo existe', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+      },
+    };
+
+    const result = await checkMultipleFilesExist({
+      drive: mockDrive,
+      folderId: 'folder-123',
+      fileNames: ['test1.pdf', 'test2.pdf'],
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('lanza error si falta drive', async () => {
+    await expect(
+      checkMultipleFilesExist({
+        folderId: 'folder-123',
+        fileNames: ['test.pdf'],
+      })
+    ).rejects.toThrow('Drive client is required');
+  });
+
+  it('lanza error si falta folderId', async () => {
+    await expect(
+      checkMultipleFilesExist({
+        drive: {},
+        fileNames: ['test.pdf'],
+      })
+    ).rejects.toThrow('Folder ID is required');
+  });
+
+  it('lanza error si fileNames no es array', async () => {
+    await expect(
+      checkMultipleFilesExist({
+        drive: {},
+        folderId: 'folder-123',
+        fileNames: 'not-an-array',
+      })
+    ).rejects.toThrow('File names array is required');
+  });
+
+  it('lanza error si fileNames es null', async () => {
+    await expect(
+      checkMultipleFilesExist({
+        drive: {},
+        folderId: 'folder-123',
+        fileNames: null,
+      })
+    ).rejects.toThrow('File names array is required');
   });
 });

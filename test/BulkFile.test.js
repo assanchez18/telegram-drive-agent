@@ -27,6 +27,17 @@ describe('BulkFile', () => {
     expect(file.fileName).toBe('photo_unique-456.jpg');
   });
 
+  it('genera nombre de video si fileName es null y mimeType es video', () => {
+    const file = new BulkFile({
+      fileId: 'file-789',
+      fileUniqueId: 'unique-789',
+      fileName: null,
+      mimeType: 'video/mp4',
+    });
+
+    expect(file.fileName).toBe('video_unique-789.mp4');
+  });
+
   it('lanza error si falta fileId', () => {
     expect(() => new BulkFile({
       fileUniqueId: 'unique-123',

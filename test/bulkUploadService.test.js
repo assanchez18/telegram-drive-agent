@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { uploadBulkFiles, validateBulkUploadRequest } from '../src/services/bulkUploadService.js';
+import { uploadBulkFiles, validateBulkUploadRequest, checkDuplicateFiles } from '../src/services/bulkUploadService.js';
 import { DOCUMENT_CATEGORIES } from '../src/domain/DocumentCategory.js';
 import axios from 'axios';
 
@@ -179,5 +179,123 @@ describe('validateBulkUploadRequest', () => {
     });
 
     expect(result.valid).toBe(true);
+  });
+});
+
+describe('checkDuplicateFiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('devuelve lista de archivos duplicados', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn()
+          .mockResolvedValueOnce({ data: { files: [] } })
+          .mockResolvedValueOnce({ data: { files: [] } })
+          .mockResolvedValueOnce({ data: { files: [{ id: 'file-1', name: 'test1.pdf' }] } })
+          .mockResolvedValueOnce({ data: { files: [] } }),
+        create: vi.fn()
+          .mockResolvedValueOnce({ data: { id: 'folder-1', name: '01_Contratos' } })
+          .mockResolvedValueOnce({ data: { id: 'folder-2', name: '2024' } }),
+      },
+    };
+
+    const files = [
+      { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
+      { fileId: 'file-2', fileName: 'test2.pdf', mimeType: 'application/pdf' },
+    ];
+
+    const duplicates = await checkDuplicateFiles({
+      drive: mockDrive,
+      files,
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      year: '2024',
+    });
+
+    expect(duplicates).toEqual(['test1.pdf']);
+  });
+
+  it('devuelve array vacío si no hay duplicados', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', name: 'FolderName' },
+        }),
+      },
+    };
+
+    const files = [
+      { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
+    ];
+
+    const duplicates = await checkDuplicateFiles({
+      drive: mockDrive,
+      files,
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      year: '2024',
+    });
+
+    expect(duplicates).toEqual([]);
+  });
+
+  it('lanza error si falta drive', async () => {
+    await expect(
+      checkDuplicateFiles({
+        files: [],
+        propertyFolderId: 'prop-123',
+        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        year: '2024',
+      })
+    ).rejects.toThrow('Drive client is required');
+  });
+
+  it('lanza error si files no es array', async () => {
+    await expect(
+      checkDuplicateFiles({
+        drive: {},
+        files: 'not-array',
+        propertyFolderId: 'prop-123',
+        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        year: '2024',
+      })
+    ).rejects.toThrow('Files array is required');
+  });
+
+  it('lanza error si files es null', async () => {
+    await expect(
+      checkDuplicateFiles({
+        drive: {},
+        files: null,
+        propertyFolderId: 'prop-123',
+        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        year: '2024',
+      })
+    ).rejects.toThrow('Files array is required');
+  });
+
+  it('lanza error si falta propertyFolderId', async () => {
+    await expect(
+      checkDuplicateFiles({
+        drive: {},
+        files: [],
+        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        year: '2024',
+      })
+    ).rejects.toThrow('Property folder ID is required');
+  });
+
+  it('lanza error si falta category', async () => {
+    await expect(
+      checkDuplicateFiles({
+        drive: {},
+        files: [],
+        propertyFolderId: 'prop-123',
+        year: '2024',
+      })
+    ).rejects.toThrow('Category is required');
   });
 });

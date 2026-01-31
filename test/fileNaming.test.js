@@ -107,6 +107,14 @@ describe('renameFilesForUpload', () => {
     expect(result[0].fileName).toBe('photo_unique123.jpg');
     expect(result[1].fileName).toBe('video_unique456.mp4');
   });
+
+  it('maneja archivos con mime types no estándar con baseName', () => {
+    const files = [
+      { fileName: null, mimeType: 'application/pdf' }
+    ];
+    const result = renameFilesForUpload(files, 'Documento');
+    expect(result[0].fileName).toBe('documento_1');
+  });
 });
 
 describe('needsUserProvidedName', () => {
