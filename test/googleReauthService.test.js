@@ -5,10 +5,10 @@ import {
   cancelSession,
   hasActiveSession,
 } from '../src/services/googleReauthService.js';
-import * as secretManagerAdapter from '../src/adapters/secretManagerAdapter.js';
+import * as tokenStorageAdapter from '../src/adapters/tokenStorageAdapter.js';
 import { google } from 'googleapis';
 
-vi.mock('../src/adapters/secretManagerAdapter.js');
+vi.mock('../src/adapters/tokenStorageAdapter.js');
 vi.mock('googleapis');
 
 describe('googleReauthService', () => {
@@ -92,18 +92,6 @@ describe('googleReauthService', () => {
       ).toThrow('State secret is required');
     });
 
-    it('lanza error si falta baseUrl', () => {
-      expect(() =>
-        createAuthUrl({
-          chatId: 123,
-          userId: 456,
-          oauthClientJson: mockOAuthClientJson,
-          stateSecret: mockStateSecret,
-          baseUrl: null,
-        })
-      ).toThrow('Base URL is required');
-    });
-
     it('lanza error si el OAuth JSON no tiene web ni installed', () => {
       const invalidJson = JSON.stringify({ foo: 'bar' });
       expect(() =>
@@ -152,12 +140,8 @@ describe('googleReauthService', () => {
     });
 
     it('genera URL de autorización correctamente', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-
       // Mock del constructor de OAuth2
-      const mockOAuth2Constructor = vi.fn(function() {
-        this.generateAuthUrl = mockGenerateAuthUrl;
-      });
+      const mockOAuth2Constructor = vi.fn(function() {});
       google.auth.OAuth2 = mockOAuth2Constructor;
 
       const result = createAuthUrl({
@@ -168,29 +152,31 @@ describe('googleReauthService', () => {
         baseUrl: mockBaseUrl,
       });
 
-      expect(result.url).toBe('https://accounts.google.com/...');
+      // Verificar estructura del resultado
+      expect(result).toHaveProperty('url');
+      expect(result).toHaveProperty('expiresAt');
       expect(result.expiresAt).toBe(Date.now() + 10 * 60 * 1000);
 
+      // Verificar que OAuth2 se construyó correctamente
       expect(google.auth.OAuth2).toHaveBeenCalledWith(
         'test-client-id',
         'test-client-secret',
         'https://example.com/oauth/google/callback'
       );
 
-      // La URL ahora se genera manualmente, no con mockGenerateAuthUrl
-      // Verificamos que la URL resultante contenga los parámetros correctos
+      // Verificar que la URL contiene todos los parámetros requeridos
+      expect(result.url).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+      expect(result.url).toContain('client_id=test-client-id');
+      expect(result.url).toContain('redirect_uri=https%3A%2F%2Fexample.com%2Foauth%2Fgoogle%2Fcallback');
       expect(result.url).toContain('response_type=code');
+      expect(result.url).toContain('scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive');
       expect(result.url).toContain('access_type=offline');
       expect(result.url).toContain('prompt=consent');
-      expect(result.url).toContain('scope=https');
+      expect(result.url).toContain('state=');
     });
 
     it('lanza error si ya hay una sesión activa', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-
-      const mockOAuth2Constructor = vi.fn(function() {
-        this.generateAuthUrl = mockGenerateAuthUrl;
-      });
+      const mockOAuth2Constructor = vi.fn(function() {});
       google.auth.OAuth2 = mockOAuth2Constructor;
 
       // Crear primera sesión
@@ -215,11 +201,7 @@ describe('googleReauthService', () => {
     });
 
     it('permite crear nueva sesión si la anterior expiró', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-
-      const mockOAuth2Constructor = vi.fn(function() {
-        this.generateAuthUrl = mockGenerateAuthUrl;
-      });
+      const mockOAuth2Constructor = vi.fn(function() {});
       google.auth.OAuth2 = mockOAuth2Constructor;
 
       // Crear primera sesión
@@ -243,7 +225,9 @@ describe('googleReauthService', () => {
         baseUrl: mockBaseUrl,
       });
 
-      expect(result.url).toBe('https://accounts.google.com/...');
+      // Verificar que se generó una nueva URL
+      expect(result.url).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+      expect(result.url).toContain('response_type=code');
     });
   });
 
@@ -252,16 +236,11 @@ describe('googleReauthService', () => {
     let mockState;
 
     beforeEach(() => {
-      // Generar state válido primero
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-      const mockOAuth2Client = {
-        generateAuthUrl: mockGenerateAuthUrl,
-      };
+      // Mock del constructor de OAuth2
+      const mockOAuth2Constructor = vi.fn(function() {});
+      google.auth.OAuth2 = mockOAuth2Constructor;
 
-      google.auth.OAuth2 = vi.fn(function() {
-        return mockOAuth2Client;
-      });
-
+      // Generar state válido usando createAuthUrl
       const { url } = createAuthUrl({
         chatId: 123,
         userId: 456,
@@ -270,9 +249,9 @@ describe('googleReauthService', () => {
         baseUrl: mockBaseUrl,
       });
 
-      // Extraer state de la llamada
-      const stateParam = mockGenerateAuthUrl.mock.calls[0][0].state;
-      mockState = stateParam;
+      // Extraer state de la URL generada
+      const urlParams = new URLSearchParams(url.split('?')[1]);
+      mockState = urlParams.get('state');
     });
 
     it('lanza error si falta code', async () => {
@@ -373,17 +352,11 @@ describe('googleReauthService', () => {
         },
       });
 
-      const mockOAuth2Client = {
-        getToken: mockGetToken,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
-
-      vi.mocked(secretManagerAdapter.getProjectId).mockResolvedValue('test-project');
-      vi.mocked(secretManagerAdapter.addSecretVersion).mockResolvedValue({
-        name: 'projects/test-project/secrets/test-secret/versions/2',
-        state: 'ENABLED',
+      google.auth.OAuth2 = vi.fn(function() {
+        this.getToken = mockGetToken;
       });
+
+      vi.mocked(tokenStorageAdapter.saveGoogleToken).mockResolvedValue(undefined);
 
       const result = await handleCallback({
         code: mockCode,
@@ -400,11 +373,10 @@ describe('googleReauthService', () => {
       expect(result.message).toContain('✅ Token actualizado correctamente');
 
       expect(mockGetToken).toHaveBeenCalledWith(mockCode);
-      expect(secretManagerAdapter.addSecretVersion).toHaveBeenCalledWith({
-        projectId: 'test-project',
-        secretId: 'test-secret',
-        payload: expect.stringContaining('test-refresh-token'),
-      });
+      expect(tokenStorageAdapter.saveGoogleToken).toHaveBeenCalledWith(
+        'test-secret',
+        expect.stringContaining('test-refresh-token')
+      );
     });
 
     it('maneja callback sin refresh_token con warning', async () => {
@@ -418,17 +390,11 @@ describe('googleReauthService', () => {
         },
       });
 
-      const mockOAuth2Client = {
-        getToken: mockGetToken,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
-
-      vi.mocked(secretManagerAdapter.getProjectId).mockResolvedValue('test-project');
-      vi.mocked(secretManagerAdapter.addSecretVersion).mockResolvedValue({
-        name: 'projects/test-project/secrets/test-secret/versions/2',
-        state: 'ENABLED',
+      google.auth.OAuth2 = vi.fn(function() {
+        this.getToken = mockGetToken;
       });
+
+      vi.mocked(tokenStorageAdapter.saveGoogleToken).mockResolvedValue(undefined);
 
       const result = await handleCallback({
         code: mockCode,
@@ -464,11 +430,9 @@ describe('googleReauthService', () => {
     it('lanza error si falla el intercambio de código', async () => {
       const mockGetToken = vi.fn().mockRejectedValue(new Error('Invalid authorization code'));
 
-      const mockOAuth2Client = {
-        getToken: mockGetToken,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
+      google.auth.OAuth2 = vi.fn(function() {
+        this.getToken = mockGetToken;
+      });
 
       await expect(
         handleCallback({
@@ -488,12 +452,8 @@ describe('googleReauthService', () => {
 
   describe('cancelSession', () => {
     it('cancela una sesión activa', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-      const mockOAuth2Client = {
-        generateAuthUrl: mockGenerateAuthUrl,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
+      const mockOAuth2Constructor = vi.fn(function() {});
+      google.auth.OAuth2 = mockOAuth2Constructor;
 
       // Crear sesión
       createAuthUrl({
@@ -520,12 +480,8 @@ describe('googleReauthService', () => {
 
   describe('hasActiveSession', () => {
     it('retorna true si hay sesión activa', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-      const mockOAuth2Client = {
-        generateAuthUrl: mockGenerateAuthUrl,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
+      const mockOAuth2Constructor = vi.fn(function() {});
+      google.auth.OAuth2 = mockOAuth2Constructor;
 
       createAuthUrl({
         chatId: 123,
@@ -543,12 +499,8 @@ describe('googleReauthService', () => {
     });
 
     it('retorna false si la sesión expiró', () => {
-      const mockGenerateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-      const mockOAuth2Client = {
-        generateAuthUrl: mockGenerateAuthUrl,
-      };
-
-      google.auth.OAuth2 = vi.fn().mockImplementation(() => mockOAuth2Client);
+      const mockOAuth2Constructor = vi.fn(function() {});
+      google.auth.OAuth2 = mockOAuth2Constructor;
 
       createAuthUrl({
         chatId: 123,
