@@ -1,5 +1,6 @@
 import { addProperty, listProperties, deleteProperty, archiveProperty, listArchivedProperties, unarchiveProperty } from '../services/propertyService.js';
 import { normalizeAddress } from '../domain/normalizeAddress.js';
+import { getVersionInfo, getStatusReport } from '../services/diagnosticsService.js';
 
 const userStates = new Map();
 
@@ -188,6 +189,76 @@ export function initializePropertyHandlers({ bot, drive, baseFolderId }) {
       await bot.sendMessage(
         chatId,
         `${isDev ? 'DEV:: ' : ''}❌ Error al listar viviendas archivadas. Revisa los logs.`
+      );
+    }
+  });
+
+  bot.onText(/\/version/, async (msg) => {
+    const chatId = msg.chat.id;
+    const isDev = process.env.NODE_ENV === 'development';
+
+    try {
+      const versionInfo = getVersionInfo();
+
+      const cloudRunInfo = versionInfo.cloudRun.service === 'local'
+        ? 'local'
+        : `${versionInfo.cloudRun.service} (${versionInfo.cloudRun.revision})`;
+
+      const message = `${isDev ? 'DEV:: ' : ''}📦 *${versionInfo.name}* v${versionInfo.version}
+
+🌍 Entorno: ${versionInfo.nodeEnv}
+☁️ Cloud Run: ${cloudRunInfo}
+🚀 Iniciado: ${versionInfo.startedAt}
+🔖 Git SHA: ${versionInfo.gitSha}`;
+
+      await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    } catch (err) {
+      console.error('Error en /version:', err);
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}⚠️ Error obteniendo información de versión. Revisa los logs.`
+      );
+    }
+  });
+
+  bot.onText(/\/status/, async (msg) => {
+    const chatId = msg.chat.id;
+    const isDev = process.env.NODE_ENV === 'development';
+
+    try {
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}🔍 Ejecutando diagnóstico del sistema...`
+      );
+
+      const checks = await getStatusReport({ drive, baseFolderId });
+
+      const statusIcon = (status) => {
+        if (status === 'success') return '✅';
+        if (status === 'failed') return '❌';
+        return '⏳';
+      };
+
+      const message = `${isDev ? 'DEV:: ' : ''}📊 *Estado del Sistema*
+
+${statusIcon(checks.config.status)} *Config*
+   ${checks.config.message}
+
+${statusIcon(checks.oauth.status)} *Google OAuth*
+   ${checks.oauth.message}
+
+${statusIcon(checks.driveAccess.status)} *Drive (carpeta raíz)*
+   ${checks.driveAccess.message}
+
+${statusIcon(checks.catalog.status)} *Catálogo*
+   ${checks.catalog.message}`;
+
+      await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    } catch (err) {
+      console.error('Error en /status:', err);
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}❌ Error ejecutando diagnóstico. Revisa los logs.`
       );
     }
   });

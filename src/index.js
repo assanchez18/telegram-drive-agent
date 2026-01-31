@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './runtime/appInfo.js'; // Inicializa APP_STARTED_AT al arranque
 import express from 'express';
 import { getDriveAuth } from './auth.js';
 import { createDriveClient, uploadStreamToDrive } from './drive.js';
@@ -44,6 +45,8 @@ const defaultCommands = [
   { command: 'unarchive_property', description: 'Reactivar vivienda' },
   { command: 'bulk', description: 'Subir varios archivos a la vez' },
   { command: 'self_test', description: 'Ejecutar self-test del sistema (admin only)' },
+  { command: 'version', description: 'Ver información de versión' },
+  { command: 'status', description: 'Ver estado del sistema' },
   { command: 'cancel', description: 'Cancelar operación actual' },
 ];
 

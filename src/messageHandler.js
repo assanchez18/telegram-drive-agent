@@ -65,6 +65,8 @@ Subida de documentos:
 
 Sistema:
 /self_test - Verificar sistema completo (test end-to-end)
+/version - Ver información de versión
+/status - Ver estado del sistema
 
 Ayuda:
 /start - Mensaje de bienvenida
@@ -100,6 +102,8 @@ Ayuda:
       '/bulk',
       '/bulk_done',
       '/self_test',
+      '/version',
+      '/status',
     ];
 
     if (knownCommands.some(cmd => msg.text?.startsWith(cmd))) {

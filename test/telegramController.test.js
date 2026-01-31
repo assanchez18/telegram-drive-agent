@@ -1,13 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initializePropertyHandlers } from '../src/controllers/telegramController.js';
+import * as diagnosticsService from '../src/services/diagnosticsService.js';
+
+vi.mock('../src/services/diagnosticsService.js');
 
 describe('initializePropertyHandlers', () => {
   let mockBot;
   let mockDrive;
   let commandHandlers;
   let textHandlers;
+  let originalEnv;
 
   beforeEach(() => {
+    originalEnv = { ...process.env };
     commandHandlers = {};
     textHandlers = [];
 
@@ -26,6 +31,10 @@ describe('initializePropertyHandlers', () => {
           commandHandlers.list_properties = handler;
         } else if (patternStr.includes('delete_property')) {
           commandHandlers.delete_property = handler;
+        } else if (patternStr.includes('version')) {
+          commandHandlers.version = handler;
+        } else if (patternStr.includes('status')) {
+          commandHandlers.status = handler;
         }
       }),
       sendMessage: vi.fn().mockResolvedValue({}),
@@ -1743,5 +1752,459 @@ describe('initializePropertyHandlers', () => {
     });
 
     expect(handled).toBe(false);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.clearAllMocks();
+  });
+
+  describe('/version command', () => {
+    it('registra el handler de /version', () => {
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      expect(mockBot.onText).toHaveBeenCalledWith(
+        expect.objectContaining({ source: expect.stringContaining('version') }),
+        expect.any(Function)
+      );
+    });
+
+    it('devuelve información de versión completa', async () => {
+      vi.mocked(diagnosticsService.getVersionInfo).mockReturnValue({
+        name: 'telegram-drive-agent',
+        version: '1.0.0',
+        nodeEnv: 'development',
+        cloudRun: {
+          service: 'local',
+          revision: 'N/A',
+        },
+        startedAt: '2024-01-01T00:00:00.000Z',
+        gitSha: 'abc123',
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      expect(diagnosticsService.getVersionInfo).toHaveBeenCalled();
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123,
+        expect.stringMatching(/telegram-drive-agent.*v1\.0\.0/s),
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    it('muestra información de Cloud Run cuando está disponible', async () => {
+      vi.mocked(diagnosticsService.getVersionInfo).mockReturnValue({
+        name: 'telegram-drive-agent',
+        version: '1.0.0',
+        nodeEnv: 'production',
+        cloudRun: {
+          service: 'my-service',
+          revision: 'my-service-00001-abc',
+        },
+        startedAt: '2024-01-01T00:00:00.000Z',
+        gitSha: 'def456',
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      const call = mockBot.sendMessage.mock.calls[0];
+      expect(call[1]).toContain('my-service');
+      expect(call[1]).toContain('my-service-00001-abc');
+    });
+
+    it('muestra "local" cuando no está en Cloud Run', async () => {
+      vi.mocked(diagnosticsService.getVersionInfo).mockReturnValue({
+        name: 'telegram-drive-agent',
+        version: '1.0.0',
+        nodeEnv: 'development',
+        cloudRun: {
+          service: 'local',
+          revision: 'N/A',
+        },
+        startedAt: '2024-01-01T00:00:00.000Z',
+        gitSha: 'N/A',
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      const call = mockBot.sendMessage.mock.calls[0];
+      expect(call[1]).toContain('local');
+      expect(call[1]).not.toContain('(N/A)');
+    });
+
+    it('maneja error al obtener información de versión', async () => {
+      vi.mocked(diagnosticsService.getVersionInfo).mockImplementation(() => {
+        throw new Error('File system error');
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123,
+        expect.stringContaining('Error obteniendo información')
+      );
+    });
+
+    it('incluye prefijo DEV:: en modo desarrollo', async () => {
+      process.env.NODE_ENV = 'development';
+
+      vi.mocked(diagnosticsService.getVersionInfo).mockReturnValue({
+        name: 'telegram-drive-agent',
+        version: '1.0.0',
+        nodeEnv: 'development',
+        cloudRun: { service: 'local', revision: 'N/A' },
+        startedAt: '2024-01-01T00:00:00.000Z',
+        gitSha: 'N/A',
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      const call = mockBot.sendMessage.mock.calls[0];
+      expect(call[1]).toContain('DEV::');
+    });
+
+    it('no incluye prefijo DEV:: en modo producción', async () => {
+      process.env.NODE_ENV = 'production';
+
+      vi.mocked(diagnosticsService.getVersionInfo).mockReturnValue({
+        name: 'telegram-drive-agent',
+        version: '1.0.0',
+        nodeEnv: 'production',
+        cloudRun: { service: 'my-service', revision: 'rev-123' },
+        startedAt: '2024-01-01T00:00:00.000Z',
+        gitSha: 'abc123',
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await commandHandlers.version(msg);
+
+      const call = mockBot.sendMessage.mock.calls[0];
+      expect(call[1]).not.toContain('DEV::');
+    });
+  });
+
+  describe('/status command', () => {
+    it('registra el handler de /status', () => {
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      expect(mockBot.onText).toHaveBeenCalledWith(
+        expect.objectContaining({ source: expect.stringContaining('status') }),
+        expect.any(Function)
+      );
+    });
+
+    it('muestra todos los checks exitosos', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'Todas las variables requeridas están configuradas' },
+        oauth: { status: 'success', message: 'Auth client válido y token actualizado' },
+        driveAccess: { status: 'success', message: 'Carpeta raíz accesible: "Test Folder"' },
+        catalog: { status: 'success', message: 'Catálogo accesible (2 propiedades activas)' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      expect(diagnosticsService.getStatusReport).toHaveBeenCalledWith({
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const statusMessage = calls[calls.length - 1];
+      expect(statusMessage[1]).toContain('✅');
+      expect(statusMessage[1]).toContain('Config');
+      expect(statusMessage[1]).toContain('Google OAuth');
+      expect(statusMessage[1]).toContain('Drive (carpeta raíz)');
+      expect(statusMessage[1]).toContain('Catálogo');
+    });
+
+    it('muestra errores de configuración', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'failed', message: 'Faltan variables: BOT_TOKEN, DRIVE_FOLDER_ID' },
+        oauth: { status: 'success', message: 'Auth client válido' },
+        driveAccess: { status: 'success', message: 'Carpeta raíz accesible' },
+        catalog: { status: 'success', message: 'Catálogo accesible (0 propiedades activas)' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const statusMessage = calls[calls.length - 1];
+      expect(statusMessage[1]).toContain('❌');
+      expect(statusMessage[1]).toContain('BOT_TOKEN');
+      expect(statusMessage[1]).toContain('DRIVE_FOLDER_ID');
+    });
+
+    it('muestra error de OAuth invalid_grant', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'Config OK' },
+        oauth: { status: 'failed', message: 'Error: invalid_grant - Token expirado o revocado' },
+        driveAccess: { status: 'success', message: 'Drive OK' },
+        catalog: { status: 'success', message: 'Catalog OK' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const statusMessage = calls[calls.length - 1];
+      expect(statusMessage[1]).toContain('❌');
+      expect(statusMessage[1]).toContain('invalid_grant');
+    });
+
+    it('continúa mostrando todos los checks aunque algunos fallen', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'Config OK' },
+        oauth: { status: 'failed', message: 'Error de OAuth' },
+        driveAccess: { status: 'failed', message: 'Error: Carpeta no encontrada (404)' },
+        catalog: { status: 'success', message: 'Catalog OK' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const statusMessage = calls[calls.length - 1];
+      expect(statusMessage[1]).toContain('✅');
+      expect(statusMessage[1]).toContain('❌');
+      expect(statusMessage[1]).toContain('Config');
+      expect(statusMessage[1]).toContain('Google OAuth');
+      expect(statusMessage[1]).toContain('Drive');
+      expect(statusMessage[1]).toContain('Catálogo');
+    });
+
+    it('maneja error al ejecutar diagnóstico', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockRejectedValue(
+        new Error('Drive client error')
+      );
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const lastMessage = calls[calls.length - 1];
+      expect(lastMessage[1]).toContain('Error ejecutando diagnóstico');
+    });
+
+    it('envía mensaje inicial antes de ejecutar checks', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'OK' },
+        oauth: { status: 'success', message: 'OK' },
+        driveAccess: { status: 'success', message: 'OK' },
+        catalog: { status: 'success', message: 'OK' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123,
+        expect.stringContaining('Ejecutando diagnóstico')
+      );
+    });
+
+    it('incluye prefijo DEV:: en modo desarrollo', async () => {
+      process.env.NODE_ENV = 'development';
+
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'OK' },
+        oauth: { status: 'success', message: 'OK' },
+        driveAccess: { status: 'success', message: 'OK' },
+        catalog: { status: 'success', message: 'OK' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      expect(calls[0][1]).toContain('DEV::');
+      expect(calls[1][1]).toContain('DEV::');
+    });
+
+    it('no incluye prefijo DEV:: en modo producción', async () => {
+      process.env.NODE_ENV = 'production';
+
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'success', message: 'OK' },
+        oauth: { status: 'success', message: 'OK' },
+        driveAccess: { status: 'success', message: 'OK' },
+        catalog: { status: 'success', message: 'OK' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      expect(calls[0][1]).not.toContain('DEV::');
+      expect(calls[1][1]).not.toContain('DEV::');
+    });
   });
 });

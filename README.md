@@ -401,6 +401,8 @@ Se excluyen de coverage:
 | `/unarchive_property` | Reactiva una vivienda archivada. La mueve de vuelta a la carpeta "Viviendas" en Drive y la añade al catálogo activo |
 | `/bulk` | Inicia modo de subida en bulk. Permite enviar múltiples archivos seguidos y luego confirmar con `/bulk_done` para procesarlos todos a la vez |
 | `/self_test` | Ejecuta un test end-to-end del sistema completo. Verifica todas las operaciones críticas: crear propiedad, verificar estructura de carpetas, subir archivos, archivar, reactivar y eliminar. Requiere confirmación previa. Disponible para todos los usuarios autorizados |
+| `/version` | Muestra información de versión de la aplicación, entorno, Cloud Run y tiempo de arranque |
+| `/status` | Ejecuta diagnóstico del sistema verificando configuración, OAuth, acceso a Drive y catálogo |
 | `/cancel` | Cancela la operación actual en curso |
 
 ### Self-Test
@@ -454,6 +456,99 @@ Paso 2/7: Crear propiedad de prueba
 ```
 
 Si algo falla durante el test, el sistema intenta hacer cleanup automáticamente (eliminar la propiedad de prueba).
+
+## Diagnóstico
+
+El bot incluye dos comandos para verificar el estado del sistema:
+
+### `/version`
+
+Muestra información sobre la versión y el entorno de ejecución:
+- Nombre y versión de la aplicación (desde `package.json`)
+- Entorno (`NODE_ENV`)
+- Información de Cloud Run (service y revision) o "local" si se ejecuta localmente
+- Timestamp de inicio del proceso
+- Git SHA (si está disponible)
+
+**Ejemplo de uso:**
+
+```
+Usuario: /version
+Bot: 📦 telegram-drive-agent v1.0.0
+
+🌍 Entorno: production
+☁️ Cloud Run: telegram-drive-agent (telegram-drive-agent-00001-abc)
+🚀 Iniciado: 2024-01-15T10:30:00.000Z
+🔖 Git SHA: abc123def
+```
+
+Este comando nunca falla. Si alguna información no está disponible, muestra "N/A".
+
+### `/status`
+
+Ejecuta un diagnóstico completo del sistema verificando:
+
+1. **Config**: Verifica que todas las variables de entorno requeridas estén configuradas
+   - `BOT_TOKEN`
+   - `TELEGRAM_WEBHOOK_SECRET`
+   - `ALLOWED_TELEGRAM_USER_IDS`
+   - `DRIVE_FOLDER_ID`
+   - `GOOGLE_OAUTH_CLIENT_JSON`
+   - `GOOGLE_OAUTH_TOKEN_JSON`
+
+2. **Google OAuth**: Intenta construir el cliente de autenticación y refrescar el token de acceso
+
+3. **Drive (carpeta raíz)**: Verifica que la carpeta raíz (`DRIVE_FOLDER_ID`) existe y es accesible
+
+4. **Catálogo**: Intenta leer el catálogo de propiedades y muestra el número de propiedades activas
+
+**Ejemplo de uso (todo OK):**
+
+```
+Usuario: /status
+Bot: 🔍 Ejecutando diagnóstico del sistema...
+
+📊 Estado del Sistema
+
+✅ Config
+   Todas las variables requeridas están configuradas
+
+✅ Google OAuth
+   Auth client válido y token actualizado
+
+✅ Drive (carpeta raíz)
+   Carpeta raíz accesible: "Telegram Drive Storage"
+
+✅ Catálogo
+   Catálogo accesible (5 propiedades activas)
+```
+
+**Ejemplo de uso (con errores):**
+
+```
+Usuario: /status
+Bot: 🔍 Ejecutando diagnóstico del sistema...
+
+📊 Estado del Sistema
+
+❌ Config
+   Faltan variables: BOT_TOKEN
+
+✅ Google OAuth
+   Auth client válido y token actualizado
+
+❌ Drive (carpeta raíz)
+   Error: Carpeta no encontrada (404)
+
+✅ Catálogo
+   Catálogo accesible (5 propiedades activas)
+```
+
+**Características:**
+- Cada check tiene un timeout de 5 segundos para evitar bloqueos
+- Si un check falla, el comando continúa con los demás checks
+- Solo lectura: no modifica ningún dato
+- Útil para verificar configuración en producción
 
 ## Estructura del proyecto
 

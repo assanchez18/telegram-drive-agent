@@ -193,6 +193,40 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
 
       expect(mockBot.sendMessage).not.toHaveBeenCalled();
     });
+
+    it('/version - NO debe ejecutar fallback', async () => {
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/version',
+      };
+
+      await handleTelegramMessage({
+        msg,
+        bot: mockBot,
+        ...mockHelpers,
+        ...mockControllers,
+      });
+
+      expect(mockBot.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('/status - NO debe ejecutar fallback', async () => {
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await handleTelegramMessage({
+        msg,
+        bot: mockBot,
+        ...mockHelpers,
+        ...mockControllers,
+      });
+
+      expect(mockBot.sendMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe('Comandos manejados en messageHandler', () => {
@@ -215,6 +249,10 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
         123,
         expect.stringContaining('Todos los comandos disponibles')
       );
+
+      const helpMessage = mockBot.sendMessage.mock.calls[0][1];
+      expect(helpMessage).toContain('/version');
+      expect(helpMessage).toContain('/status');
     });
 
     it('/start - debe responder UNA VEZ con mensaje de ayuda', async () => {
