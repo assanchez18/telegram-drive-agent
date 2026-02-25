@@ -31,8 +31,9 @@ function requireEnv(name) {
 
 const BOT_TOKEN = requireEnv('BOT_TOKEN');
 const DRIVE_FOLDER_ID = requireEnv('DRIVE_FOLDER_ID');
+const GOOGLE_TOKEN_SECRET_NAME = process.env.GOOGLE_TOKEN_SECRET_NAME || 'GOOGLE_OAUTH_TOKEN_JSON';
 
-const auth = getDriveAuth();
+const auth = await getDriveAuth(GOOGLE_TOKEN_SECRET_NAME);
 const bot = createTelegramBot(BOT_TOKEN);
 const drive = createDriveClient(auth);
 
@@ -93,7 +94,6 @@ const selfTestController = initializeSelfTestHandlers({
 const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || crypto.randomBytes(32).toString('hex');
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // Opcional en desarrollo, obligatorio en producción
 const GOOGLE_OAUTH_CLIENT_JSON = process.env.GOOGLE_OAUTH_CLIENT_JSON;
-const GOOGLE_TOKEN_SECRET_NAME = process.env.GOOGLE_TOKEN_SECRET_NAME || 'GOOGLE_OAUTH_TOKEN_JSON';
 
 if (!OAUTH_STATE_SECRET || OAUTH_STATE_SECRET.length < 32) {
   console.warn('⚠️  OAUTH_STATE_SECRET no configurado o demasiado corto. Usando valor temporal (no usar en producción).');

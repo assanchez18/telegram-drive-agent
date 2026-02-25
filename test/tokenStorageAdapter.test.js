@@ -4,6 +4,8 @@ import path from 'path';
 import {
   shouldUseSecretManager,
   saveGoogleToken,
+  getGoogleToken,
+  invalidateTokenCache,
 } from '../src/adapters/tokenStorageAdapter.js';
 import * as secretManagerAdapter from '../src/adapters/secretManagerAdapter.js';
 
@@ -19,10 +21,13 @@ describe('tokenStorageAdapter', () => {
     process.env = { ...originalEnv };
     delete process.env.USE_SECRET_MANAGER;
     delete process.env.NODE_ENV;
+    // Limpiar caché entre tests
+    invalidateTokenCache();
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    invalidateTokenCache();
   });
 
   describe('shouldUseSecretManager', () => {
@@ -238,6 +243,137 @@ describe('tokenStorageAdapter', () => {
           'Permission denied'
         );
       });
+    });
+  });
+
+  describe('getGoogleToken', () => {
+    const mockSecretName = 'GOOGLE_OAUTH_TOKEN_JSON';
+    const mockTokenJson = JSON.stringify({
+      type: 'authorized_user',
+      refresh_token: 'fresh-refresh-token',
+      access_token: 'fresh-access-token',
+    });
+
+    beforeEach(() => {
+      vi.mocked(secretManagerAdapter.getProjectId).mockResolvedValue('test-project');
+      vi.mocked(secretManagerAdapter.getSecretVersion).mockResolvedValue(mockTokenJson);
+      vi.mocked(fs.readFile).mockResolvedValue(mockTokenJson);
+    });
+
+    it('lanza error si falta secretName', async () => {
+      await expect(getGoogleToken(null)).rejects.toThrow('Secret name is required');
+    });
+
+    describe('en producción (USE_SECRET_MANAGER=true)', () => {
+      beforeEach(() => {
+        process.env.USE_SECRET_MANAGER = 'true';
+      });
+
+      it('lee desde Secret Manager (versión latest)', async () => {
+        const result = await getGoogleToken(mockSecretName);
+
+        expect(secretManagerAdapter.getProjectId).toHaveBeenCalled();
+        expect(secretManagerAdapter.getSecretVersion).toHaveBeenCalledWith({
+          projectId: 'test-project',
+          secretId: mockSecretName,
+          version: 'latest',
+        });
+        expect(result).toBe(mockTokenJson);
+      });
+
+      it('usa caché en la segunda llamada dentro del TTL', async () => {
+        await getGoogleToken(mockSecretName);
+        await getGoogleToken(mockSecretName);
+
+        expect(secretManagerAdapter.getSecretVersion).toHaveBeenCalledTimes(1);
+      });
+
+      it('tras invalidateTokenCache() lee desde Secret Manager de nuevo', async () => {
+        await getGoogleToken(mockSecretName);
+        invalidateTokenCache();
+        await getGoogleToken(mockSecretName);
+
+        expect(secretManagerAdapter.getSecretVersion).toHaveBeenCalledTimes(2);
+      });
+
+      it('el token del caché antiguo no se usa tras invalidateTokenCache()', async () => {
+        const oldToken = JSON.stringify({ refresh_token: 'old-token' });
+        const newToken = JSON.stringify({ refresh_token: 'new-token' });
+
+        vi.mocked(secretManagerAdapter.getSecretVersion)
+          .mockResolvedValueOnce(oldToken)
+          .mockResolvedValueOnce(newToken);
+
+        const first = await getGoogleToken(mockSecretName);
+        expect(first).toBe(oldToken);
+
+        invalidateTokenCache();
+
+        const second = await getGoogleToken(mockSecretName);
+        expect(second).toBe(newToken);
+      });
+
+      it('propaga error de Secret Manager', async () => {
+        vi.mocked(secretManagerAdapter.getSecretVersion).mockRejectedValue(
+          new Error('Secret Manager unavailable')
+        );
+
+        await expect(getGoogleToken(mockSecretName)).rejects.toThrow(
+          'Secret Manager unavailable'
+        );
+      });
+    });
+
+    describe('en desarrollo (USE_SECRET_MANAGER=false)', () => {
+      beforeEach(() => {
+        process.env.USE_SECRET_MANAGER = 'false';
+      });
+
+      it('lee desde archivo local', async () => {
+        const result = await getGoogleToken(mockSecretName);
+
+        const expectedPath = path.join(
+          process.cwd(),
+          'secrets',
+          `${mockSecretName}.local.json`
+        );
+        expect(fs.readFile).toHaveBeenCalledWith(expectedPath, 'utf8');
+        expect(result).toBe(mockTokenJson);
+        expect(secretManagerAdapter.getSecretVersion).not.toHaveBeenCalled();
+      });
+
+      it('usa caché en la segunda llamada', async () => {
+        await getGoogleToken(mockSecretName);
+        await getGoogleToken(mockSecretName);
+
+        expect(fs.readFile).toHaveBeenCalledTimes(1);
+      });
+
+      it('propaga error de lectura de archivo', async () => {
+        vi.mocked(fs.readFile).mockRejectedValue(new Error('File not found'));
+
+        await expect(getGoogleToken(mockSecretName)).rejects.toThrow('File not found');
+      });
+    });
+  });
+
+  describe('invalidateTokenCache', () => {
+    it('no lanza error si se llama sin caché previo', () => {
+      expect(() => invalidateTokenCache()).not.toThrow();
+    });
+
+    it('fuerza nueva lectura desde la fuente en el siguiente getGoogleToken()', async () => {
+      process.env.USE_SECRET_MANAGER = 'false';
+      vi.mocked(fs.readFile).mockResolvedValue('{"token":"v1"}');
+
+      await getGoogleToken('test-secret');
+      invalidateTokenCache();
+
+      vi.mocked(fs.readFile).mockResolvedValue('{"token":"v2"}');
+      const result = await getGoogleToken('test-secret');
+
+      expect(result).toBe('{"token":"v2"}');
+      expect(fs.readFile).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { google } from 'googleapis';
-import { saveGoogleToken } from '../adapters/tokenStorageAdapter.js';
+import { saveGoogleToken, invalidateTokenCache } from '../adapters/tokenStorageAdapter.js';
 
 // Store para sesiones activas (en memoria, se pierde al reiniciar pero es aceptable)
 const activeSessions = new Map();
@@ -91,12 +91,6 @@ export function createAuthUrl({ chatId, userId, oauthClientJson, stateSecret, ba
   const redirectUri = getRedirectUri(baseUrl, port);
   console.log('[GoogleReauth] Using redirect URI:', redirectUri);
 
-  const oauth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirectUri
-  );
-
   // Generar state firmado
   const nonce = crypto.randomBytes(16).toString('hex');
   const iat = Date.now();
@@ -133,12 +127,6 @@ export function createAuthUrl({ chatId, userId, oauthClientJson, stateSecret, ba
   }).toString()}`;
 
   console.log('[GoogleReauth] Generated auth URL:', authUrl);
-
-  // Verificar que la URL contiene response_type
-  if (!authUrl.includes('response_type=')) {
-    console.error('[GoogleReauth] WARNING: Generated URL missing response_type parameter');
-    console.error('[GoogleReauth] OAuth2Client details:', { client_id, redirectUri });
-  }
 
   return {
     url: authUrl,
@@ -248,6 +236,9 @@ export async function handleCallback({
 
     // Guardar token (Secret Manager en producción, archivo local en desarrollo)
     await saveGoogleToken(secretName, tokenJson);
+
+    // Invalidar caché para que el siguiente getGoogleToken() lea el token nuevo
+    invalidateTokenCache();
 
     // Limpiar sesión
     activeSessions.delete(sessionKey);

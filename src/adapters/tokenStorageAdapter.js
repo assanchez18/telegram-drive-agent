@@ -1,6 +1,21 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { addSecretVersion, getProjectId } from './secretManagerAdapter.js';
+import { addSecretVersion, getProjectId, getSecretVersion } from './secretManagerAdapter.js';
+
+// In-memory token cache
+let _tokenCache = null;
+let _tokenCacheTimestamp = 0;
+const TOKEN_CACHE_TTL_MS = 60 * 1000; // 60 segundos
+
+/**
+ * Invalida el caché en memoria del token OAuth.
+ * Debe llamarse tras guardar un token nuevo para que el siguiente
+ * getGoogleToken() lea la versión más reciente.
+ */
+export function invalidateTokenCache() {
+  _tokenCache = null;
+  _tokenCacheTimestamp = 0;
+}
 
 /**
  * Determina si debe usar Secret Manager basado en configuración.
@@ -59,6 +74,47 @@ async function saveToLocalFile(secretName, tokenJson) {
   await fs.writeFile(filePath, tokenJson, 'utf8');
 
   console.log(`[TokenStorage] Token guardado en archivo local: ${filePath}`);
+}
+
+/**
+ * Lee el token OAuth de Google de forma segura, con caché en memoria.
+ *
+ * En producción (USE_SECRET_MANAGER=true o NODE_ENV=production):
+ * - Lee la versión 'latest' desde Google Secret Manager
+ *
+ * En desarrollo:
+ * - Lee desde ./secrets/${secretName}.local.json
+ *
+ * El resultado se cachea 60 segundos. Llama a invalidateTokenCache() para forzar
+ * una lectura fresca (p.ej. tras completar /google_login).
+ *
+ * IMPORTANTE: NO loguea el contenido del token por seguridad.
+ *
+ * @param {string} secretName - Nombre del secret/archivo
+ * @returns {Promise<string>} Token JSON como string
+ */
+export async function getGoogleToken(secretName) {
+  if (!secretName) {
+    throw new Error('Secret name is required');
+  }
+
+  if (_tokenCache !== null && Date.now() - _tokenCacheTimestamp < TOKEN_CACHE_TTL_MS) {
+    return _tokenCache;
+  }
+
+  let tokenJson;
+  if (shouldUseSecretManager()) {
+    const projectId = await getProjectId();
+    tokenJson = await getSecretVersion({ projectId, secretId: secretName, version: 'latest' });
+  } else {
+    const secretsDir = path.join(process.cwd(), 'secrets');
+    const filePath = path.join(secretsDir, `${secretName}.local.json`);
+    tokenJson = await fs.readFile(filePath, 'utf8');
+  }
+
+  _tokenCache = tokenJson;
+  _tokenCacheTimestamp = Date.now();
+  return tokenJson;
 }
 
 /**

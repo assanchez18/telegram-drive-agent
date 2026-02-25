@@ -322,5 +322,153 @@ describe('selfTestService', () => {
       expect(report.cleanupFailed).toBe(true);
       expect(report.cleanupError).toContain('No se pudo eliminar');
     });
+
+    it('falla en paso 4 cuando al menos un upload falla', async () => {
+      vi.mocked(propertyService.listProperties)
+        .mockResolvedValueOnce({ properties: [] })
+        .mockResolvedValueOnce({
+          properties: [{ address: 'Self-Test-123', normalizedAddress: 'Self-Test-123', propertyFolderId: 'test-folder-id' }],
+        });
+
+      vi.mocked(propertyService.addProperty).mockResolvedValueOnce({
+        success: true,
+        normalizedAddress: 'Self-Test-123',
+        message: 'Propiedad creada',
+      });
+
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockReset();
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockResolvedValue('category-folder-id');
+
+      vi.mocked(driveAdapter.uploadBufferToDrive).mockReset();
+      // Primer upload falla, segundo OK
+      vi.mocked(driveAdapter.uploadBufferToDrive)
+        .mockRejectedValueOnce(new Error('Drive upload error'))
+        .mockResolvedValueOnce({ id: 'doc-id', name: 'selftest-doc.pdf' });
+
+      vi.mocked(propertyService.deleteProperty).mockResolvedValue({ success: true, message: 'Eliminada' });
+
+      const mockDrive = {};
+      const reportPromise = executeSelfTest({ drive: mockDrive, baseFolderId: 'base-folder-id' });
+      await vi.runAllTimersAsync();
+      const report = await reportPromise;
+
+      expect(report.success).toBe(false);
+      expect(report.error).toContain('Fallo al subir archivos');
+    });
+
+    it('falla en paso 5 cuando archive retorna success=false', async () => {
+      vi.mocked(propertyService.listProperties)
+        .mockResolvedValueOnce({ properties: [] })
+        .mockResolvedValueOnce({
+          properties: [{ address: 'Self-Test-123', normalizedAddress: 'Self-Test-123', propertyFolderId: 'test-folder-id' }],
+        });
+
+      vi.mocked(propertyService.addProperty).mockResolvedValueOnce({
+        success: true,
+        normalizedAddress: 'Self-Test-123',
+        message: 'Propiedad creada',
+      });
+
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockReset();
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockResolvedValue('category-folder-id');
+
+      vi.mocked(driveAdapter.uploadBufferToDrive).mockReset();
+      vi.mocked(driveAdapter.uploadBufferToDrive)
+        .mockResolvedValueOnce({ id: 'photo-id', name: 'selftest-photo.jpg' })
+        .mockResolvedValueOnce({ id: 'doc-id', name: 'selftest-doc.pdf' });
+
+      vi.mocked(propertyService.archiveProperty).mockResolvedValueOnce({
+        success: false,
+        message: 'No se pudo archivar',
+      });
+
+      vi.mocked(propertyService.deleteProperty).mockResolvedValue({ success: true, message: 'Eliminada' });
+
+      const mockDrive = {};
+      const reportPromise = executeSelfTest({ drive: mockDrive, baseFolderId: 'base-folder-id' });
+      await vi.runAllTimersAsync();
+      const report = await reportPromise;
+
+      expect(report.success).toBe(false);
+      expect(report.error).toContain('No se pudo archivar');
+    });
+
+    it('falla en paso 6 cuando unarchive retorna success=false', async () => {
+      vi.mocked(propertyService.listProperties)
+        .mockResolvedValueOnce({ properties: [] })
+        .mockResolvedValueOnce({
+          properties: [{ address: 'Self-Test-123', normalizedAddress: 'Self-Test-123', propertyFolderId: 'test-folder-id' }],
+        });
+
+      vi.mocked(propertyService.addProperty).mockResolvedValueOnce({
+        success: true,
+        normalizedAddress: 'Self-Test-123',
+        message: 'Propiedad creada',
+      });
+
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockReset();
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockResolvedValue('category-folder-id');
+
+      vi.mocked(driveAdapter.uploadBufferToDrive).mockReset();
+      vi.mocked(driveAdapter.uploadBufferToDrive)
+        .mockResolvedValueOnce({ id: 'photo-id', name: 'selftest-photo.jpg' })
+        .mockResolvedValueOnce({ id: 'doc-id', name: 'selftest-doc.pdf' });
+
+      vi.mocked(propertyService.archiveProperty).mockResolvedValueOnce({ success: true, message: 'Archivada' });
+
+      vi.mocked(propertyService.unarchiveProperty).mockResolvedValueOnce({
+        success: false,
+        message: 'No se pudo reactivar',
+      });
+
+      vi.mocked(propertyService.deleteProperty).mockResolvedValue({ success: true, message: 'Eliminada' });
+
+      const mockDrive = {};
+      const reportPromise = executeSelfTest({ drive: mockDrive, baseFolderId: 'base-folder-id' });
+      await vi.runAllTimersAsync();
+      const report = await reportPromise;
+
+      expect(report.success).toBe(false);
+      expect(report.error).toContain('No se pudo reactivar');
+    });
+
+    it('falla en paso 7 cuando delete retorna success=false', async () => {
+      vi.mocked(propertyService.listProperties)
+        .mockResolvedValueOnce({ properties: [] })
+        .mockResolvedValueOnce({
+          properties: [{ address: 'Self-Test-123', normalizedAddress: 'Self-Test-123', propertyFolderId: 'test-folder-id' }],
+        });
+
+      vi.mocked(propertyService.addProperty).mockResolvedValueOnce({
+        success: true,
+        normalizedAddress: 'Self-Test-123',
+        message: 'Propiedad creada',
+      });
+
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockReset();
+      vi.mocked(driveAdapter.resolveCategoryFolderId).mockResolvedValue('category-folder-id');
+
+      vi.mocked(driveAdapter.uploadBufferToDrive).mockReset();
+      vi.mocked(driveAdapter.uploadBufferToDrive)
+        .mockResolvedValueOnce({ id: 'photo-id', name: 'selftest-photo.jpg' })
+        .mockResolvedValueOnce({ id: 'doc-id', name: 'selftest-doc.pdf' });
+
+      vi.mocked(propertyService.archiveProperty).mockResolvedValueOnce({ success: true, message: 'Archivada' });
+      vi.mocked(propertyService.unarchiveProperty).mockResolvedValueOnce({ success: true, message: 'Reactivada' });
+
+      vi.mocked(propertyService.deleteProperty).mockReset();
+      vi.mocked(propertyService.deleteProperty).mockResolvedValueOnce({
+        success: false,
+        message: 'No se pudo eliminar propiedad',
+      });
+
+      const mockDrive = {};
+      const reportPromise = executeSelfTest({ drive: mockDrive, baseFolderId: 'base-folder-id' });
+      await vi.runAllTimersAsync();
+      const report = await reportPromise;
+
+      expect(report.success).toBe(false);
+      expect(report.error).toContain('No se pudo eliminar');
+    });
   });
 });

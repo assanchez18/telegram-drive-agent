@@ -33,6 +33,29 @@ export async function addSecretVersion({ projectId, secretId, payload }) {
 }
 
 /**
+ * Lee el contenido de una versión de un secreto.
+ *
+ * @param {string} projectId
+ * @param {string} secretId
+ * @param {string} [version='latest']
+ * @returns {Promise<string>} Contenido del secreto como string UTF-8
+ */
+export async function getSecretVersion({ projectId, secretId, version = 'latest' }) {
+  if (!projectId) {
+    throw new Error('Project ID is required');
+  }
+  if (!secretId) {
+    throw new Error('Secret ID is required');
+  }
+
+  const client = new SecretManagerServiceClient();
+  const name = `projects/${projectId}/secrets/${secretId}/versions/${version}`;
+
+  const [secretVersion] = await client.accessSecretVersion({ name });
+  return secretVersion.payload.data.toString('utf8');
+}
+
+/**
  * Obtiene el ID del proyecto desde las credenciales de Google Cloud
  * Si no está en las credenciales, intenta obtenerlo de metadata
  */

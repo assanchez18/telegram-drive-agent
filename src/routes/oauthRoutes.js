@@ -1,5 +1,6 @@
 import express from 'express';
 import { createAuthUrl, handleCallback } from '../services/googleReauthService.js';
+import { refreshDriveAuthCredentials } from '../auth.js';
 
 export function createOAuthRouter({ oauthClientJson, stateSecret, baseUrl, port, secretName, bot }) {
   const router = express.Router();
@@ -83,6 +84,13 @@ export function createOAuthRouter({ oauthClientJson, stateSecret, baseUrl, port,
         port,
         secretName,
       });
+
+      // Actualizar credenciales en memoria para que el siguiente comando use el token nuevo
+      try {
+        await refreshDriveAuthCredentials(secretName);
+      } catch (refreshErr) {
+        console.warn('[OAuth] No se pudo refrescar credenciales de Drive en memoria:', refreshErr.message);
+      }
 
       // Notificar al chat
       try {

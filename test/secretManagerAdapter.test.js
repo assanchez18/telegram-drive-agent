@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addSecretVersion, getProjectId } from '../src/adapters/secretManagerAdapter.js';
+import { addSecretVersion, getProjectId, getSecretVersion } from '../src/adapters/secretManagerAdapter.js';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
 vi.mock('@google-cloud/secret-manager');
@@ -13,11 +13,13 @@ describe('secretManagerAdapter', () => {
     mockClient = {
       addSecretVersion: vi.fn(),
       getProjectId: vi.fn(),
+      accessSecretVersion: vi.fn(),
     };
 
     // Mock del constructor
     SecretManagerServiceClient.prototype.addSecretVersion = mockClient.addSecretVersion;
     SecretManagerServiceClient.prototype.getProjectId = mockClient.getProjectId;
+    SecretManagerServiceClient.prototype.accessSecretVersion = mockClient.accessSecretVersion;
   });
 
   describe('addSecretVersion', () => {
@@ -75,6 +77,73 @@ describe('secretManagerAdapter', () => {
 
       expect(projectId).toBe('my-project-123');
       expect(mockClient.getProjectId).toHaveBeenCalled();
+    });
+  });
+
+  describe('getSecretVersion', () => {
+    it('lanza error si falta projectId', async () => {
+      await expect(
+        getSecretVersion({ projectId: '', secretId: 'test-secret' })
+      ).rejects.toThrow('Project ID is required');
+    });
+
+    it('lanza error si falta secretId', async () => {
+      await expect(
+        getSecretVersion({ projectId: 'test-project', secretId: '' })
+      ).rejects.toThrow('Secret ID is required');
+    });
+
+    it('lee la versión latest del secreto correctamente', async () => {
+      const secretPayload = '{"access_token":"tok","refresh_token":"ref"}';
+      mockClient.accessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: Buffer.from(secretPayload, 'utf8'),
+          },
+        },
+      ]);
+
+      const result = await getSecretVersion({
+        projectId: 'test-project',
+        secretId: 'GOOGLE_OAUTH_TOKEN_JSON',
+      });
+
+      expect(mockClient.accessSecretVersion).toHaveBeenCalledWith({
+        name: 'projects/test-project/secrets/GOOGLE_OAUTH_TOKEN_JSON/versions/latest',
+      });
+      expect(result).toBe(secretPayload);
+    });
+
+    it('lee una versión específica del secreto', async () => {
+      const secretPayload = '{"access_token":"tok2"}';
+      mockClient.accessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: Buffer.from(secretPayload, 'utf8'),
+          },
+        },
+      ]);
+
+      const result = await getSecretVersion({
+        projectId: 'test-project',
+        secretId: 'GOOGLE_OAUTH_TOKEN_JSON',
+        version: '3',
+      });
+
+      expect(mockClient.accessSecretVersion).toHaveBeenCalledWith({
+        name: 'projects/test-project/secrets/GOOGLE_OAUTH_TOKEN_JSON/versions/3',
+      });
+      expect(result).toBe(secretPayload);
+    });
+
+    it('propaga errores de Secret Manager', async () => {
+      mockClient.accessSecretVersion.mockRejectedValue(
+        new Error('Permission denied')
+      );
+
+      await expect(
+        getSecretVersion({ projectId: 'test-project', secretId: 'test-secret' })
+      ).rejects.toThrow('Permission denied');
     });
   });
 });
