@@ -9,6 +9,7 @@ import {
   clearBulkSession,
 } from '../repositories/bulkSessionRepository.js';
 import { extractBulkFileInfo } from '../adapters/telegramFileAdapter.js';
+import { isBulk, isBulkDone } from '../domain/commands.js';
 import { uploadBulkFiles, checkDuplicateFiles } from '../services/bulkUploadService.js';
 import { listProperties } from '../services/propertyService.js';
 import { renameFilesForUpload, needsUserProvidedName } from '../utils/fileNaming.js';
@@ -212,7 +213,7 @@ Para cancelar: /cancel.`
       const chatId = msg.chat.id;
       const isDev = process.env.NODE_ENV === 'development';
 
-      if (msg.text === '/bulk' || msg.text === '/bulk_done') {
+      if (isBulk(msg) || isBulkDone(msg)) {
         return true;
       }
 

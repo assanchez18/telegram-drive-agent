@@ -21,7 +21,7 @@ import { clearBulkSession } from './repositories/bulkSessionRepository.js';
 import { clearIndividualUploadSession } from './repositories/individualUploadSessionRepository.js';
 import { handleTelegramMessage } from './messageHandler.js';
 import { createOAuthRouter } from './routes/oauthRoutes.js';
-import { defaultCommands, bulkModeCommands } from './commands.js';
+import { defaultCommands, bulkModeCommands } from './domain/commands.js';
 
 function requireEnv(name) {
   const v = process.env[name];
