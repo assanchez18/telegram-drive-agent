@@ -1,5 +1,4 @@
 import { addProperty, listProperties, deleteProperty, archiveProperty, listArchivedProperties, unarchiveProperty } from '../services/propertyService.js';
-import { normalizeAddress } from '../domain/normalizeAddress.js';
 import { getVersionInfo, getStatusReport } from '../services/diagnosticsService.js';
 
 const userStates = new Map();

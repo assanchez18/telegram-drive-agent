@@ -7,7 +7,6 @@ import { createDriveClient, uploadStreamToDrive } from './drive.js';
 import {
   createTelegramBot,
   extractTelegramFileInfo,
-  getFileDownloadStream,
 } from './telegram.js';
 import {
   isAuthorizedTelegramUser,

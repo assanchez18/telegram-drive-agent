@@ -59,7 +59,7 @@ export async function getStatusReport({ drive, baseFolderId }) {
 
   // Check 2: Google OAuth - Intentar construir auth client y verificar token
   try {
-    const authClient = getDriveAuth();
+    const authClient = await getDriveAuth();
 
     // Forzar refresh del token para verificar que funciona
     const timeoutPromise = new Promise((_, reject) => {
