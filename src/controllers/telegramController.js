@@ -228,19 +228,21 @@ export function initializePropertyHandlers({ bot, drive, baseFolderId }) {
         return '⏳';
       };
 
+      const escapeMd = (text) => text.replace(/[_*`[]/g, '\\$&');
+
       const message = `${isDev ? 'DEV:: ' : ''}📊 *Estado del Sistema*
 
 ${statusIcon(checks.config.status)} *Config*
-   ${checks.config.message}
+   ${escapeMd(checks.config.message)}
 
 ${statusIcon(checks.oauth.status)} *Google OAuth*
-   ${checks.oauth.message}
+   ${escapeMd(checks.oauth.message)}
 
 ${statusIcon(checks.driveAccess.status)} *Drive (carpeta raíz)*
-   ${checks.driveAccess.message}
+   ${escapeMd(checks.driveAccess.message)}
 
 ${statusIcon(checks.catalog.status)} *Catálogo*
-   ${checks.catalog.message}`;
+   ${escapeMd(checks.catalog.message)}`;
 
       await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
     } catch (err) {

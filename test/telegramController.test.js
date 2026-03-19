@@ -2024,8 +2024,37 @@ describe('initializePropertyHandlers', () => {
       const calls = mockBot.sendMessage.mock.calls;
       const statusMessage = calls[calls.length - 1];
       expect(statusMessage[1]).toContain('❌');
-      expect(statusMessage[1]).toContain('BOT_TOKEN');
-      expect(statusMessage[1]).toContain('DRIVE_FOLDER_ID');
+      expect(statusMessage[1]).toContain('BOT\\_TOKEN');
+      expect(statusMessage[1]).toContain('DRIVE\\_FOLDER\\_ID');
+    });
+
+    it('escapa caracteres especiales de Markdown en los mensajes de checks', async () => {
+      vi.mocked(diagnosticsService.getStatusReport).mockResolvedValue({
+        config: { status: 'failed', message: 'Faltan variables: GOOGLE_OAUTH_CLIENT_JSON' },
+        oauth: { status: 'failed', message: 'Error: invalid_grant' },
+        driveAccess: { status: 'success', message: 'Carpeta raíz accesible' },
+        catalog: { status: 'success', message: 'Catálogo accesible (0 propiedades activas)' },
+      });
+
+      initializePropertyHandlers({
+        bot: mockBot,
+        drive: mockDrive,
+        baseFolderId: 'base-id',
+      });
+
+      const msg = {
+        chat: { id: 123 },
+        from: { id: 456 },
+        text: '/status',
+      };
+
+      await commandHandlers.status(msg);
+
+      const calls = mockBot.sendMessage.mock.calls;
+      const statusMessage = calls[calls.length - 1];
+      expect(statusMessage[1]).toContain('GOOGLE\\_OAUTH\\_CLIENT\\_JSON');
+      expect(statusMessage[1]).toContain('invalid\\_grant');
+      expect(statusMessage[1]).not.toContain('GOOGLE_OAUTH_CLIENT_JSON');
     });
 
     it('muestra error de OAuth invalid_grant', async () => {
@@ -2053,7 +2082,7 @@ describe('initializePropertyHandlers', () => {
       const calls = mockBot.sendMessage.mock.calls;
       const statusMessage = calls[calls.length - 1];
       expect(statusMessage[1]).toContain('❌');
-      expect(statusMessage[1]).toContain('invalid_grant');
+      expect(statusMessage[1]).toContain('invalid\\_grant');
     });
 
     it('continúa mostrando todos los checks aunque algunos fallen', async () => {
