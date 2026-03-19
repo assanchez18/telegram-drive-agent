@@ -19,8 +19,8 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
         handleBulkMessage: vi.fn().mockResolvedValue(false),
       },
       individualUploadController: {
-        handleIndividualUploadMessage: vi.fn().mockResolvedValue(false),
-        startIndividualUpload: vi.fn().mockResolvedValue({}),
+        onTextMessage: vi.fn().mockResolvedValue(false),
+        onFileReceived: vi.fn().mockResolvedValue({}),
       },
       propertyController: {
         handleTextMessage: vi.fn().mockResolvedValue(false),
@@ -442,7 +442,7 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
       };
 
       // Simular que el individualController está manejando el archivo
-      mockControllers.individualUploadController.handleIndividualUploadMessage.mockResolvedValue(true);
+      mockControllers.individualUploadController.onTextMessage.mockResolvedValue(true);
 
       await handleTelegramMessage({
         msg,
@@ -509,7 +509,7 @@ describe('handleTelegramMessage - Bug Fix: No Double Response', () => {
         ...mockControllers,
       });
 
-      expect(mockControllers.individualUploadController.startIndividualUpload).toHaveBeenCalledWith(
+      expect(mockControllers.individualUploadController.onFileReceived).toHaveBeenCalledWith(
         msg,
         fileInfo
       );

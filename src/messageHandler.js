@@ -60,11 +60,11 @@ export async function handleTelegramMessage({
   if (isCancel(msg)) return await handleCancelCommand({ chatId, bot, isDev, clearBulkSession, clearIndividualUploadSession, defaultCommands });
 
   if (await bulkUploadController.handleBulkMessage(msg)) return;
-  if (await individualUploadController.handleIndividualUploadMessage(msg)) return;
+  if (await individualUploadController.onTextMessage(msg)) return;
   if (await propertyController.handleTextMessage(msg)) return;
 
   const fileInfo = extractTelegramFileInfo(msg);
   if (!fileInfo) return await handleFallbackMessage({ msg, bot, isDev });
 
-  await individualUploadController.startIndividualUpload(msg, fileInfo);
+  await individualUploadController.onFileReceived(msg, fileInfo);
 }
