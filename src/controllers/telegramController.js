@@ -321,6 +321,10 @@ ${redirectUri}
       const text = msg.text;
       const isDev = process.env.NODE_ENV === 'development';
 
+      if (text?.startsWith('/')) {
+        return false;
+      }
+
       const userState = userStates.get(userId);
 
       if (!userState) {

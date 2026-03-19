@@ -308,6 +308,44 @@ describe('propertyExists', () => {
 
     expect(result).toBe(false);
   });
+
+  it('devuelve false si la vivienda tiene status deleted (entrada legacy)', async () => {
+    const catalogData = {
+      version: 1,
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      properties: [
+        {
+          address: 'Calle Mayor 123',
+          normalizedAddress: 'calle mayor 123',
+          propertyFolderId: 'folder-123',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          status: 'deleted',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            files: [{ id: 'catalog-id', name: '.properties.json' }],
+          },
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: JSON.stringify(catalogData),
+        }),
+      },
+    };
+
+    const result = await propertyExists({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      normalizedAddress: 'calle mayor 123',
+    });
+
+    expect(result).toBe(false);
+  });
 });
 
 describe('addProperty', () => {
@@ -451,7 +489,8 @@ describe('listProperties', () => {
 });
 
 describe('deleteProperty', () => {
-  it('marca vivienda como deleted en el catálogo', async () => {
+  it('elimina vivienda del catálogo y devuelve sus datos con status deleted', async () => {
+    let writtenCatalog;
     const mockDrive = {
       files: {
         list: vi.fn().mockResolvedValue({
@@ -481,7 +520,16 @@ describe('deleteProperty', () => {
             ],
           }),
         }),
-        update: vi.fn().mockResolvedValue({}),
+        update: vi.fn().mockImplementation(({ media }) => {
+          return new Promise((resolve) => {
+            let rawData = '';
+            media.body.on('data', (chunk) => { rawData += chunk; });
+            media.body.on('end', () => {
+              writtenCatalog = JSON.parse(rawData);
+              resolve({});
+            });
+          });
+        }),
       },
     };
 
@@ -495,6 +543,10 @@ describe('deleteProperty', () => {
     expect(result.status).toBe('deleted');
     expect(result.deletedAt).toBeDefined();
     expect(mockDrive.files.update).toHaveBeenCalled();
+
+    expect(writtenCatalog.properties).toHaveLength(1);
+    expect(writtenCatalog.properties[0].normalizedAddress).toBe('Calle Test 456');
+    expect(writtenCatalog.properties.some((p) => p.normalizedAddress === 'Calle Test 123')).toBe(false);
   });
 
   it('lanza error si la vivienda no existe', async () => {
@@ -524,7 +576,8 @@ describe('deleteProperty', () => {
     ).rejects.toThrow('Property not found');
   });
 
-  it('no permite eliminar una vivienda ya marcada como deleted', async () => {
+  it('permite eliminar una vivienda archivada y la elimina del catálogo', async () => {
+    let writtenCatalog;
     const mockDrive = {
       files: {
         list: vi.fn().mockResolvedValue({
@@ -541,22 +594,35 @@ describe('deleteProperty', () => {
                 address: 'Calle Test 123',
                 normalizedAddress: 'Calle Test 123',
                 propertyFolderId: 'folder-123',
-                status: 'deleted',
-                deletedAt: '2024-01-01T00:00:00.000Z',
+                status: 'archived',
+                archivedAt: '2024-01-01T00:00:00.000Z',
               },
             ],
           }),
         }),
+        update: vi.fn().mockImplementation(({ media }) => {
+          return new Promise((resolve) => {
+            let rawData = '';
+            media.body.on('data', (chunk) => { rawData += chunk; });
+            media.body.on('end', () => {
+              writtenCatalog = JSON.parse(rawData);
+              resolve({});
+            });
+          });
+        }),
       },
     };
 
-    await expect(
-      deleteProperty({
-        drive: mockDrive,
-        folderId: 'folder-id',
-        normalizedAddress: 'Calle Test 123',
-      })
-    ).rejects.toThrow('Property not found');
+    const result = await deleteProperty({
+      drive: mockDrive,
+      folderId: 'folder-id',
+      normalizedAddress: 'Calle Test 123',
+    });
+
+    expect(result.address).toBe('Calle Test 123');
+    expect(result.status).toBe('deleted');
+    expect(result.deletedAt).toBeDefined();
+    expect(writtenCatalog.properties).toHaveLength(0);
   });
 });
 

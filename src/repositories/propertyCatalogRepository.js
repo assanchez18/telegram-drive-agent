@@ -84,7 +84,7 @@ export async function writeCatalog({ drive, folderId, catalog }) {
 export async function propertyExists({ drive, folderId, normalizedAddress }) {
   const catalog = await readCatalog({ drive, folderId });
   return catalog.properties.some(
-    (p) => p.normalizedAddress === normalizedAddress
+    (p) => p.normalizedAddress === normalizedAddress && p.status !== 'deleted'
   );
 }
 
@@ -127,25 +127,27 @@ export async function listArchivedProperties({ drive, folderId }) {
 export async function deleteProperty({ drive, folderId, normalizedAddress }) {
   const catalog = await readCatalog({ drive, folderId });
 
-  const propertyIndex = catalog.properties.findIndex(
+  const property = catalog.properties.find(
     (p) => p.normalizedAddress === normalizedAddress && p.status !== 'deleted'
   );
 
-  if (propertyIndex === -1) {
+  if (!property) {
     throw new Error('Property not found');
   }
 
-  const property = catalog.properties[propertyIndex];
-  const updatedProperty = {
+  const deletedProperty = {
     ...property,
     status: 'deleted',
     deletedAt: new Date().toISOString(),
   };
-  catalog.properties[propertyIndex] = updatedProperty;
+
+  catalog.properties = catalog.properties.filter(
+    (p) => p.normalizedAddress !== normalizedAddress
+  );
 
   await writeCatalog({ drive, folderId, catalog });
 
-  return updatedProperty;
+  return deletedProperty;
 }
 
 export async function archiveProperty({ drive, folderId, normalizedAddress }) {

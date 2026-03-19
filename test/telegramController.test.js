@@ -254,6 +254,27 @@ describe('initializePropertyHandlers', () => {
     expect(handled).toBe(false);
   });
 
+  it('handleTextMessage devuelve false si el texto es un comando (evita procesar /add_property como dirección)', async () => {
+    const controller = initializePropertyHandlers({
+      bot: mockBot,
+      drive: mockDrive,
+      baseFolderId: 'base-id',
+    });
+
+    await commandHandlers.add_property({ chat: { id: 123 }, from: { id: 456 } });
+
+    const commandMsg = {
+      chat: { id: 123 },
+      from: { id: 456 },
+      text: '/add_property',
+    };
+
+    const handled = await controller.handleTextMessage(commandMsg);
+
+    expect(handled).toBe(false);
+    expect(mockDrive.files.create).not.toHaveBeenCalled();
+  });
+
   it('handleTextMessage muestra error si la vivienda ya existe', async () => {
     mockDrive.files.list.mockResolvedValue({
       data: {
