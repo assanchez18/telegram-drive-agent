@@ -62,38 +62,6 @@ describe('bulkUploadController', () => {
     });
   });
 
-  it('lanza error si falta bot', () => {
-    expect(() => initializeBulkUploadHandlers({
-      drive: mockDrive,
-      baseFolderId: 'base-folder-id',
-      botToken: 'bot-token-123',
-    })).toThrow('Bot is required');
-  });
-
-  it('lanza error si falta drive', () => {
-    expect(() => initializeBulkUploadHandlers({
-      bot: mockBot,
-      baseFolderId: 'base-folder-id',
-      botToken: 'bot-token-123',
-    })).toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', () => {
-    expect(() => initializeBulkUploadHandlers({
-      bot: mockBot,
-      drive: mockDrive,
-      botToken: 'bot-token-123',
-    })).toThrow('Base folder ID is required');
-  });
-
-  it('lanza error si falta botToken', () => {
-    expect(() => initializeBulkUploadHandlers({
-      bot: mockBot,
-      drive: mockDrive,
-      baseFolderId: 'base-folder-id',
-    })).toThrow('Bot token is required');
-  });
-
   it('registra handler para /bulk', () => {
     expect(mockBot.onText).toHaveBeenCalledWith(/\/bulk$/, expect.any(Function));
   });

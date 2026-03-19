@@ -122,18 +122,6 @@ describe('getStatusReport', () => {
     vi.clearAllMocks();
   });
 
-  it('lanza error si falta drive', async () => {
-    await expect(getStatusReport({ drive: null, baseFolderId: 'test-id' })).rejects.toThrow(
-      'Drive client is required'
-    );
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    await expect(getStatusReport({ drive: mockDrive, baseFolderId: '' })).rejects.toThrow(
-      'Base folder ID is required'
-    );
-  });
-
   it('devuelve todos los checks exitosos cuando todo funciona', async () => {
     const mockAuthClient = {
       getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),

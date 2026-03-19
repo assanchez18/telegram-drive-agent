@@ -21,6 +21,7 @@ import { clearBulkSession } from './repositories/bulkSessionRepository.js';
 import { clearIndividualUploadSession } from './repositories/individualUploadSessionRepository.js';
 import { handleTelegramMessage } from './messageHandler.js';
 import { createOAuthRouter } from './routes/oauthRoutes.js';
+import { defaultCommands, bulkModeCommands } from './commands.js';
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -28,72 +29,20 @@ function requireEnv(name) {
   return v;
 }
 
-const BOT_TOKEN = requireEnv('BOT_TOKEN');
-const DRIVE_FOLDER_ID = requireEnv('DRIVE_FOLDER_ID');
-const GOOGLE_TOKEN_SECRET_NAME = process.env.GOOGLE_TOKEN_SECRET_NAME || 'GOOGLE_OAUTH_TOKEN_JSON';
+function loadConfig() {
+  return {
+    botToken: requireEnv('BOT_TOKEN'),
+    driveFolderId: requireEnv('DRIVE_FOLDER_ID'),
+    googleTokenSecretName: process.env.GOOGLE_TOKEN_SECRET_NAME || 'GOOGLE_OAUTH_TOKEN_JSON',
+    port: process.env.PORT || 8080,
+  };
+}
 
-const auth = await getDriveAuth(GOOGLE_TOKEN_SECRET_NAME);
-const bot = createTelegramBot(BOT_TOKEN);
-const drive = createDriveClient(auth);
-
-const defaultCommands = [
-  { command: 'start', description: 'Mensaje de bienvenida' },
-  { command: 'help', description: 'Mostrar ayuda' },
-  { command: 'add_property', description: 'Añadir nueva vivienda' },
-  { command: 'list_properties', description: 'Listar viviendas activas' },
-  { command: 'delete_property', description: 'Eliminar vivienda' },
-  { command: 'archive', description: 'Menú de archivo' },
-  { command: 'archive_property', description: 'Archivar vivienda' },
-  { command: 'list_archived', description: 'Ver viviendas archivadas' },
-  { command: 'unarchive_property', description: 'Reactivar vivienda' },
-  { command: 'bulk', description: 'Subir varios archivos a la vez' },
-  { command: 'self_test', description: 'Ejecutar self-test del sistema (admin only)' },
-  { command: 'google_login', description: 'Re-autorizar Google Drive' },
-  { command: 'version', description: 'Ver información de versión' },
-  { command: 'status', description: 'Ver estado del sistema' },
-  { command: 'cancel', description: 'Cancelar operación actual' },
-];
-
-const bulkModeCommands = [
-  { command: 'bulk_done', description: 'Finalizar subida bulk' },
-  { command: 'cancel', description: 'Cancelar operación actual' },
-];
-
-await bot.setMyCommands(defaultCommands);
-
-const propertyController = initializePropertyHandlers({
-  bot,
-  drive,
-  baseFolderId: DRIVE_FOLDER_ID,
-});
-
-const bulkUploadController = initializeBulkUploadHandlers({
-  bot,
-  drive,
-  baseFolderId: DRIVE_FOLDER_ID,
-  botToken: BOT_TOKEN,
-  defaultCommands,
-  bulkModeCommands,
-});
-
-const individualUploadController = initializeIndividualUploadHandlers({
-  bot,
-  drive,
-  baseFolderId: DRIVE_FOLDER_ID,
-  botToken: BOT_TOKEN,
-});
-
-const selfTestController = initializeSelfTestHandlers({
-  bot,
-  drive,
-  baseFolderId: DRIVE_FOLDER_ID,
-});
-
-const app = express();
-app.use(express.json({ limit: '20mb' }));
-
-const port = process.env.PORT || 8080;
-const isDev = process.env.NODE_ENV === 'development';
+function validateSystemDependencies({ auth, bot, drive }) {
+  if (!auth) throw new Error('Google Drive auth is required');
+  if (!bot) throw new Error('Telegram bot is required');
+  if (!drive) throw new Error('Google Drive client is required');
+}
 
 function initializeGoogleOAuth({ app, bot, port, googleTokenSecretName }) {
   const oauthClientJson = process.env.GOOGLE_OAUTH_CLIENT_JSON;
@@ -129,59 +78,107 @@ function initializeGoogleOAuth({ app, bot, port, googleTokenSecretName }) {
   }
 }
 
-initializeGoogleOAuth({ app, bot, port, googleTokenSecretName: GOOGLE_TOKEN_SECRET_NAME });
-
-// Procesamiento de mensajes (misma lógica que en polling, pero ahora
-// se disparará cuando lleguen updates vía webhook)
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
+async function main() {
+  const { botToken, driveFolderId, googleTokenSecretName, port } = loadConfig();
   const isDev = process.env.NODE_ENV === 'development';
 
-  try {
-    await handleTelegramMessage({
-      msg,
-      bot,
-      isAuthorizedTelegramUser,
-      clearBulkSession,
-      clearIndividualUploadSession,
-      bulkUploadController,
-      individualUploadController,
-      propertyController,
-      extractTelegramFileInfo,
-      defaultCommands,
-    });
-  } catch (err) {
-    console.error('Error procesando mensaje:', err);
+  const auth = await getDriveAuth(googleTokenSecretName);
+  const bot = createTelegramBot(botToken);
+  const drive = createDriveClient(auth);
+
+  validateSystemDependencies({ auth, bot, drive });
+
+  await bot.setMyCommands(defaultCommands);
+
+  const propertyController = initializePropertyHandlers({
+    bot,
+    drive,
+    baseFolderId: driveFolderId,
+  });
+
+  const bulkUploadController = initializeBulkUploadHandlers({
+    bot,
+    drive,
+    baseFolderId: driveFolderId,
+    botToken,
+    defaultCommands,
+    bulkModeCommands,
+  });
+
+  const individualUploadController = initializeIndividualUploadHandlers({
+    bot,
+    drive,
+    baseFolderId: driveFolderId,
+    botToken,
+  });
+
+  const selfTestController = initializeSelfTestHandlers({
+    bot,
+    drive,
+    baseFolderId: driveFolderId,
+  });
+
+  const app = express();
+  app.use(express.json({ limit: '20mb' }));
+
+  initializeGoogleOAuth({ app, bot, port, googleTokenSecretName });
+
+  // Procesamiento de mensajes (misma lógica que en polling, pero ahora
+  // se disparará cuando lleguen updates vía webhook)
+  bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+
     try {
-      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}❌ Error subiendo el archivo. Revisa logs.`);
-    } catch {
-      // si no podemos enviar mensaje, no hacemos nada
+      await handleTelegramMessage({
+        msg,
+        bot,
+        isAuthorizedTelegramUser,
+        clearBulkSession,
+        clearIndividualUploadSession,
+        bulkUploadController,
+        individualUploadController,
+        propertyController,
+        extractTelegramFileInfo,
+        defaultCommands,
+      });
+    } catch (err) {
+      console.error('Error procesando mensaje:', err);
+      try {
+        await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}❌ Error subiendo el archivo. Revisa logs.`);
+      } catch {
+        // si no podemos enviar mensaje, no hacemos nada
+      }
     }
-  }
-});
+  });
 
-// Endpoint webhook
-app.post('/telegram/webhook', (req, res) => {
-  try {
-    // Verificación de origen (production)
-    if (!verifyTelegramWebhookSecret(req)) {
-      return res.status(401).send('Unauthorized');
+  // Endpoint webhook
+  app.post('/telegram/webhook', (req, res) => {
+    try {
+      // Verificación de origen (production)
+      if (!verifyTelegramWebhookSecret(req)) {
+        return res.status(401).send('Unauthorized');
+      }
+
+      // Importante: responder rápido y procesar el update
+      bot.processUpdate(req.body);
+      return res.status(200).send('OK');
+    } catch (err) {
+      console.error('Webhook error:', err);
+      return res.status(500).send('Error');
     }
+  });
 
-    // Importante: responder rápido y procesar el update
-    bot.processUpdate(req.body);
-    return res.status(200).send('OK');
-  } catch (err) {
-    console.error('Webhook error:', err);
-    return res.status(500).send('Error');
-  }
-});
+  app.listen(port, () => {
+    console.log(`🚀 Webhook server escuchando en :${port}`);
+    if (isDev) {
+      console.log('🔧 Modo DEV activado');
+      console.log('   Ejecuta: npm run tunnel (en otra terminal)');
+      console.log('   Luego: npm run webhook:dev (en otra terminal)');
+    }
+  });
+}
 
-app.listen(port, () => {
-  console.log(`🚀 Webhook server escuchando en :${port}`);
-  if (isDev) {
-    console.log('🔧 Modo DEV activado');
-    console.log('   Ejecuta: npm run tunnel (en otra terminal)');
-    console.log('   Luego: npm run webhook:dev (en otra terminal)');
-  }
+main().catch((err) => {
+  console.error('Error fatal al iniciar la aplicación:', err);
+  process.exit(1);
 });

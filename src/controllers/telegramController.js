@@ -4,16 +4,6 @@ import { getVersionInfo, getStatusReport } from '../services/diagnosticsService.
 const userStates = new Map();
 
 export function initializePropertyHandlers({ bot, drive, baseFolderId }) {
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-
   bot.onText(/\/add_property/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;

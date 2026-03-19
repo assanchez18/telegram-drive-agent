@@ -11,12 +11,6 @@ import {
 } from '../repositories/propertyCatalogRepository.js';
 
 export async function addProperty({ drive, baseFolderId, address }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
   if (!address) {
     throw new Error('Address is required');
   }
@@ -57,13 +51,6 @@ export async function addProperty({ drive, baseFolderId, address }) {
 }
 
 export async function listProperties({ drive, baseFolderId }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-
   const properties = await listPropertiesFromRepo({ drive, folderId: baseFolderId });
 
   if (properties.length === 0) {
@@ -77,12 +64,6 @@ export async function listProperties({ drive, baseFolderId }) {
 }
 
 export async function deleteProperty({ drive, baseFolderId, normalizedAddress }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
   if (!normalizedAddress) {
     throw new Error('Normalized address is required');
   }
@@ -103,12 +84,6 @@ export async function deleteProperty({ drive, baseFolderId, normalizedAddress })
 }
 
 export async function archiveProperty({ drive, baseFolderId, normalizedAddress }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
   if (!normalizedAddress) {
     throw new Error('Normalized address is required');
   }
@@ -139,13 +114,6 @@ export async function archiveProperty({ drive, baseFolderId, normalizedAddress }
 }
 
 export async function listArchivedProperties({ drive, baseFolderId }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-
   const properties = await listArchivedPropertiesFromRepo({ drive, folderId: baseFolderId });
 
   if (properties.length === 0) {
@@ -159,12 +127,6 @@ export async function listArchivedProperties({ drive, baseFolderId }) {
 }
 
 export async function unarchiveProperty({ drive, baseFolderId, normalizedAddress }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
   if (!normalizedAddress) {
     throw new Error('Normalized address is required');
   }

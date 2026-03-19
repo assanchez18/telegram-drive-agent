@@ -56,36 +56,6 @@ describe('initializeSelfTestHandlers', () => {
   });
 
   describe('initialization', () => {
-    it('lanza error si falta bot', () => {
-      expect(() =>
-        initializeSelfTestHandlers({
-          bot: null,
-          drive: mockDrive,
-          baseFolderId: 'base-id',
-        })
-      ).toThrow('Bot is required');
-    });
-
-    it('lanza error si falta drive', () => {
-      expect(() =>
-        initializeSelfTestHandlers({
-          bot: mockBot,
-          drive: null,
-          baseFolderId: 'base-id',
-        })
-      ).toThrow('Drive client is required');
-    });
-
-    it('lanza error si falta baseFolderId', () => {
-      expect(() =>
-        initializeSelfTestHandlers({
-          bot: mockBot,
-          drive: mockDrive,
-          baseFolderId: '',
-        })
-      ).toThrow('Base folder ID is required');
-    });
-
     it('registra el handler de /self_test', () => {
       initializeSelfTestHandlers({
         bot: mockBot,

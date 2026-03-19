@@ -26,17 +26,6 @@ describe('googleLoginController', () => {
     };
   });
 
-  it('lanza error si falta bot', () => {
-    expect(() =>
-      initializeGoogleLoginHandlers({
-        bot: null,
-        oauthClientJson: mockOAuthClientJson,
-        stateSecret: mockStateSecret,
-        baseUrl: mockBaseUrl,
-      })
-    ).toThrow('Bot is required');
-  });
-
   it('lanza error si falta oauthClientJson', () => {
     expect(() =>
       initializeGoogleLoginHandlers({

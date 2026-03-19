@@ -73,28 +73,6 @@ describe('uploadBulkFiles', () => {
     })).rejects.toThrow('Drive client is required');
   });
 
-  it('lanza error si falta bot', async () => {
-    await expect(uploadBulkFiles({
-      drive: {},
-      botToken: 'token',
-      files: [],
-      propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
-      year: '2024',
-    })).rejects.toThrow('Bot is required');
-  });
-
-  it('lanza error si falta botToken', async () => {
-    await expect(uploadBulkFiles({
-      drive: {},
-      bot: {},
-      files: [],
-      propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
-      year: '2024',
-    })).rejects.toThrow('Bot token is required');
-  });
-
   it('lanza error si files no es array', async () => {
     await expect(uploadBulkFiles({
       drive: {},

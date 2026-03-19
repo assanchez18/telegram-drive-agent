@@ -10,9 +10,6 @@ export async function checkDuplicateFiles({
   category,
   year,
 }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
   if (!files || !Array.isArray(files)) {
     throw new Error('Files array is required');
   }
@@ -49,15 +46,6 @@ export async function uploadBulkFiles({
   category,
   year,
 }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
-  if (!botToken) {
-    throw new Error('Bot token is required');
-  }
   if (!files || !Array.isArray(files)) {
     throw new Error('Files array is required');
   }

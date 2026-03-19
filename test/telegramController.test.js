@@ -59,36 +59,6 @@ describe('initializePropertyHandlers', () => {
     };
   });
 
-  it('lanza error si falta bot', () => {
-    expect(() =>
-      initializePropertyHandlers({
-        bot: null,
-        drive: mockDrive,
-        baseFolderId: 'base-id',
-      })
-    ).toThrow('Bot is required');
-  });
-
-  it('lanza error si falta drive', () => {
-    expect(() =>
-      initializePropertyHandlers({
-        bot: mockBot,
-        drive: null,
-        baseFolderId: 'base-id',
-      })
-    ).toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', () => {
-    expect(() =>
-      initializePropertyHandlers({
-        bot: mockBot,
-        drive: mockDrive,
-        baseFolderId: '',
-      })
-    ).toThrow('Base folder ID is required');
-  });
-
   it('registra el handler de /add_property', () => {
     initializePropertyHandlers({
       bot: mockBot,

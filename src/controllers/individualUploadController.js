@@ -12,19 +12,6 @@ import { uploadBufferToDrive, resolveCategoryFolderId } from '../adapters/driveA
 import { applySnakeCaseToFileName, needsUserProvidedName } from '../utils/fileNaming.js';
 
 export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, botToken }) {
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-  if (!botToken) {
-    throw new Error('Bot token is required');
-  }
-
   bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
     const data = callbackQuery.data;

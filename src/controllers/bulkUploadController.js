@@ -14,19 +14,6 @@ import { listProperties } from '../services/propertyService.js';
 import { renameFilesForUpload, needsUserProvidedName } from '../utils/fileNaming.js';
 
 export function initializeBulkUploadHandlers({ bot, drive, baseFolderId, botToken, defaultCommands, bulkModeCommands }) {
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-  if (!botToken) {
-    throw new Error('Bot token is required');
-  }
-
   bot.onText(/\/bulk$/, async (msg) => {
     const chatId = msg.chat.id;
     const isDev = process.env.NODE_ENV === 'development';

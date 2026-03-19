@@ -23,13 +23,6 @@ export function getVersionInfo() {
 }
 
 export async function getStatusReport({ drive, baseFolderId }) {
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-
   const checks = {
     config: { status: 'pending', message: '' },
     oauth: { status: 'pending', message: '' },

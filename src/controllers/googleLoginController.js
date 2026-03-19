@@ -1,9 +1,6 @@
 import { createAuthUrl, cancelSession, hasActiveSession } from '../services/googleReauthService.js';
 
 export function initializeGoogleLoginHandlers({ bot, oauthClientJson, stateSecret, baseUrl, port }) {
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
   if (!oauthClientJson) {
     throw new Error('OAuth client JSON is required');
   }

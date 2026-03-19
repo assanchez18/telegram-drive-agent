@@ -134,28 +134,6 @@ describe('addProperty', () => {
     expect(yearFolders.length).toBeGreaterThan(0);
   });
 
-  it('lanza error si falta drive', async () => {
-    await expect(
-      addProperty({
-        drive: null,
-        baseFolderId: 'base-folder-id',
-        address: 'Calle Test',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      addProperty({
-        drive: mockDrive,
-        baseFolderId: '',
-        address: 'Calle Test',
-      })
-    ).rejects.toThrow('Base folder ID is required');
-  });
-
   it('lanza error si falta address', async () => {
     const mockDrive = { files: {} };
 
@@ -242,25 +220,6 @@ describe('listProperties', () => {
     expect(result.message).toContain('/add_property');
   });
 
-  it('lanza error si falta drive', async () => {
-    await expect(
-      listProperties({
-        drive: null,
-        baseFolderId: 'base-folder-id',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      listProperties({
-        drive: mockDrive,
-        baseFolderId: '',
-      })
-    ).rejects.toThrow('Base folder ID is required');
-  });
 });
 
 describe('deleteProperty', () => {
@@ -304,28 +263,6 @@ describe('deleteProperty', () => {
     expect(mockDrive.files.delete).toHaveBeenCalledWith({
       fileId: 'folder-123',
     });
-  });
-
-  it('lanza error si falta drive', async () => {
-    await expect(
-      deleteProperty({
-        drive: null,
-        baseFolderId: 'base-id',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      deleteProperty({
-        drive: mockDrive,
-        baseFolderId: '',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Base folder ID is required');
   });
 
   it('lanza error si falta normalizedAddress', async () => {
@@ -415,28 +352,6 @@ describe('archiveProperty', () => {
     expect(result.property.address).toBe('Calle Test 123');
   });
 
-  it('lanza error si falta drive', async () => {
-    await expect(
-      archiveProperty({
-        drive: null,
-        baseFolderId: 'base-id',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      archiveProperty({
-        drive: mockDrive,
-        baseFolderId: '',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Base folder ID is required');
-  });
-
   it('lanza error si falta normalizedAddress', async () => {
     const mockDrive = { files: {} };
 
@@ -513,25 +428,6 @@ describe('listArchivedProperties', () => {
     expect(result.message).toContain('No hay viviendas archivadas');
   });
 
-  it('lanza error si falta drive', async () => {
-    await expect(
-      listArchivedProperties({
-        drive: null,
-        baseFolderId: 'base-folder-id',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      listArchivedProperties({
-        drive: mockDrive,
-        baseFolderId: '',
-      })
-    ).rejects.toThrow('Base folder ID is required');
-  });
 });
 
 describe('unarchiveProperty', () => {
@@ -580,28 +476,6 @@ describe('unarchiveProperty', () => {
     expect(result.success).toBe(true);
     expect(result.message).toContain('reactivada correctamente');
     expect(result.property.address).toBe('Calle Test 123');
-  });
-
-  it('lanza error si falta drive', async () => {
-    await expect(
-      unarchiveProperty({
-        drive: null,
-        baseFolderId: 'base-id',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Drive client is required');
-  });
-
-  it('lanza error si falta baseFolderId', async () => {
-    const mockDrive = { files: {} };
-
-    await expect(
-      unarchiveProperty({
-        drive: mockDrive,
-        baseFolderId: '',
-        normalizedAddress: 'Test',
-      })
-    ).rejects.toThrow('Base folder ID is required');
   });
 
   it('lanza error si falta normalizedAddress', async () => {

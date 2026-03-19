@@ -41,16 +41,6 @@ function formatSelfTestReport(report) {
 }
 
 export function initializeSelfTestHandlers({ bot, drive, baseFolderId }) {
-  if (!bot) {
-    throw new Error('Bot is required');
-  }
-  if (!drive) {
-    throw new Error('Drive client is required');
-  }
-  if (!baseFolderId) {
-    throw new Error('Base folder ID is required');
-  }
-
   // Comando /self_test
   bot.onText(/\/self_test/, async (msg) => {
     const chatId = msg.chat.id;
