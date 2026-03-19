@@ -89,48 +89,47 @@ const selfTestController = initializeSelfTestHandlers({
   baseFolderId: DRIVE_FOLDER_ID,
 });
 
-// Configuración para OAuth (re-autorización Google)
-const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || crypto.randomBytes(32).toString('hex');
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // Opcional en desarrollo, obligatorio en producción
-const GOOGLE_OAUTH_CLIENT_JSON = process.env.GOOGLE_OAUTH_CLIENT_JSON;
-
-if (!OAUTH_STATE_SECRET || OAUTH_STATE_SECRET.length < 32) {
-  console.warn('⚠️  OAUTH_STATE_SECRET no configurado o demasiado corto. Usando valor temporal (no usar en producción).');
-}
-
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 
 const port = process.env.PORT || 8080;
 const isDev = process.env.NODE_ENV === 'development';
 
-// Inicializar Google Login handlers si está configurado
-if (GOOGLE_OAUTH_CLIENT_JSON) {
-  initializeGoogleLoginHandlers({
-    bot,
-    oauthClientJson: GOOGLE_OAUTH_CLIENT_JSON,
-    stateSecret: OAUTH_STATE_SECRET,
-    baseUrl: PUBLIC_BASE_URL,
-    port,
-  });
-  console.log('✅ Google Login habilitado');
-} else {
-  console.warn('⚠️  GOOGLE_OAUTH_CLIENT_JSON no configurado. /google_login no estará disponible.');
+function initializeGoogleOAuth({ app, bot, port, googleTokenSecretName }) {
+  const oauthClientJson = process.env.GOOGLE_OAUTH_CLIENT_JSON;
+  const oauthStateSecret = process.env.OAUTH_STATE_SECRET || crypto.randomBytes(32).toString('hex');
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL;
+
+  if (!oauthStateSecret || oauthStateSecret.length < 32) {
+    console.warn('⚠️  OAUTH_STATE_SECRET no configurado o demasiado corto. Usando valor temporal (no usar en producción).');
+  }
+
+  if (oauthClientJson) {
+    initializeGoogleLoginHandlers({
+      bot,
+      oauthClientJson,
+      stateSecret: oauthStateSecret,
+      baseUrl: publicBaseUrl,
+      port,
+    });
+    console.log('✅ Google Login habilitado');
+
+    const oauthRouter = createOAuthRouter({
+      oauthClientJson,
+      stateSecret: oauthStateSecret,
+      baseUrl: publicBaseUrl,
+      port,
+      secretName: googleTokenSecretName,
+      bot,
+    });
+    app.use('/oauth', oauthRouter);
+    console.log('✅ OAuth routes montadas en /oauth');
+  } else {
+    console.warn('⚠️  GOOGLE_OAUTH_CLIENT_JSON no configurado. /google_login no estará disponible.');
+  }
 }
 
-// Montar rutas OAuth si está configurado
-if (GOOGLE_OAUTH_CLIENT_JSON) {
-  const oauthRouter = createOAuthRouter({
-    oauthClientJson: GOOGLE_OAUTH_CLIENT_JSON,
-    stateSecret: OAUTH_STATE_SECRET,
-    baseUrl: PUBLIC_BASE_URL,
-    port,
-    secretName: GOOGLE_TOKEN_SECRET_NAME,
-    bot,
-  });
-  app.use('/oauth', oauthRouter);
-  console.log('✅ OAuth routes montadas en /oauth');
-}
+initializeGoogleOAuth({ app, bot, port, googleTokenSecretName: GOOGLE_TOKEN_SECRET_NAME });
 
 // Procesamiento de mensajes (misma lógica que en polling, pero ahora
 // se disparará cuando lleguen updates vía webhook)
