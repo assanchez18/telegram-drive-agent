@@ -49,16 +49,16 @@ Usuario → Telegram → Webhook → Cloud Run (Express) → Google Drive API
 
 Las siguientes variables deben configurarse en Secret Manager o como variables de entorno en Cloud Run:
 
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `BOT_TOKEN` | Token del bot de Telegram (de @BotFather) | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` |
-| `TELEGRAM_WEBHOOK_SECRET` | Secret para validar webhooks de Telegram | `my-secret-token-xyz` |
-| `ALLOWED_TELEGRAM_USER_IDS` | Lista de IDs de usuarios autorizados (separados por coma) | `123456789,987654321` |
-| `DRIVE_FOLDER_ID` | ID de la carpeta de Google Drive donde se subirán archivos | `1a2b3c4d5e6f7g8h9i0j` |
-| `GOOGLE_OAUTH_CLIENT_JSON` | JSON con credenciales OAuth de Google Cloud Console | `{"installed":{"client_id":"...","client_secret":"..."}}` |
-| `GOOGLE_OAUTH_TOKEN_JSON` | JSON con el refresh token de OAuth | `{"access_token":"...","refresh_token":"..."}` |
-| `USE_SECRET_MANAGER` | Si debe usar Secret Manager para guardar tokens (default: `true` en prod, `false` en dev) | `true` |
-| `PORT` | Puerto del servidor (auto-asignado por Cloud Run) | `8080` |
+| Variable | Descripción |
+|----------|-------------|
+| `BOT_TOKEN` | Token del bot de Telegram (de @BotFather) |
+| `TELEGRAM_WEBHOOK_SECRET` | Secret aleatorio para validar webhooks de Telegram |
+| `ALLOWED_TELEGRAM_USER_IDS` | Lista de IDs de usuarios autorizados (separados por coma) |
+| `DRIVE_FOLDER_ID` | ID de la carpeta raíz de Google Drive |
+| `GOOGLE_OAUTH_CLIENT_JSON` | JSON con credenciales OAuth descargado de Google Cloud Console |
+| `GOOGLE_OAUTH_TOKEN_JSON` | JSON con el refresh token de OAuth (gestionado automáticamente) |
+| `USE_SECRET_MANAGER` | Si debe usar Secret Manager para guardar tokens (default: `true` en prod, `false` en dev) |
+| `PORT` | Puerto del servidor (auto-asignado por Cloud Run) |
 
 ### Desarrollo local
 
@@ -67,7 +67,7 @@ En desarrollo, puedes usar un archivo `.env` en la raíz del proyecto o pasar la
 ```bash
 BOT_TOKEN=your_bot_token
 TELEGRAM_WEBHOOK_SECRET=your_secret
-ALLOWED_TELEGRAM_USER_IDS=123456789,987654321
+ALLOWED_TELEGRAM_USER_IDS=your_telegram_user_id
 DRIVE_FOLDER_ID=your_folder_id
 NODE_ENV=development
 PORT=8080
@@ -135,14 +135,13 @@ El bot creará automáticamente en Google Drive la siguiente estructura:
 DRIVE_FOLDER_ID/
 └── Viviendas/
     └── Calle Mayor 123, Madrid/
-        ├── 01_Contratos/2026/
-        ├── 02_Inquilinos_Sensible/
-        ├── 03_Seguros/2026/
-        ├── 04_Suministros/2026/
-        ├── 05_Comunidad_Impuestos/2026/
-        ├── 06_Facturas_Reformas/2026/
-        ├── 07_Fotos_Estado/
-        └── 99_Otros/
+        ├── Renta/
+        │   └── 2026/
+        │       ├── Ingresos/
+        │       └── Gastos/
+        ├── Gestión/
+        └── Archivo/
+            └── Fotos/
 ```
 
 #### Ejemplo: Eliminar una vivienda
@@ -215,9 +214,9 @@ Bot: DEV:: ¿A qué vivienda pertenecen?
 
 Usuario: [selecciona "Calle Mayor 123, Madrid"]
 Bot: DEV:: ¿En qué categoría?
-[Botones: Contratos | Inquilinos_Sensible | Seguros | Suministros | Comunidad_Impuestos | Facturas_Reformas | Fotos_Estado | Otros]
+[Botones: Ingresos | Gastos | Gestión | Archivo | Fotos | Cancelar]
 
-Usuario: [selecciona "Contratos"]
+Usuario: [selecciona "Ingresos"]
 Bot: DEV:: ¿Año?
 [Botones: 2026 ✅ | Otro año | Cancelar]
 
@@ -233,7 +232,7 @@ Usuario: Estado Inicial
 Bot: DEV:: Vas a guardar 3 archivos en:
 
 📍 Vivienda: Calle Mayor 123, Madrid
-📂 Categoría: Contratos
+📂 Categoría: Ingresos
 📅 Año: 2026
 📝 Nombre base: estado_inicial (1 archivo)
 
@@ -267,13 +266,9 @@ Bot: DEV:: ¿A qué vivienda pertenece?
 
 Usuario: [selecciona "Calle Mayor 123, Madrid"]
 Bot: DEV:: ¿En qué categoría?
-[Botones: Contratos | Inquilinos_Sensible | Seguros | ... | Fotos_Estado | Otros]
+[Botones: Ingresos | Gastos | Gestión | Archivo | Fotos | Cancelar]
 
-Usuario: [selecciona "Fotos_Estado"]
-Bot: DEV:: ¿Año?
-[Botones: 2026 ✅ | Otro año | Cancelar]
-
-Usuario: [selecciona "2026 ✅"]
+Usuario: [selecciona "Fotos"]
 Bot: DEV:: ¿Qué nombre quieres darle al archivo?
 
 Envía el nombre (sin extensión) o "skip" para usar nombre automático:
@@ -282,7 +277,7 @@ Usuario: Estado Inicial Vivienda
 Bot: DEV:: ⏳ Subiendo archivo...
 Bot: DEV:: ✅ Archivo "estado_inicial_vivienda.jpg" subido correctamente en:
 📍 Calle Mayor 123, Madrid
-📂 Fotos_Estado
+📂 Fotos
 📅 N/A
 ```
 
@@ -414,7 +409,7 @@ El comando `/self_test` está diseñado para verificar que todos los sistemas fu
 
 1. Verifica el listado de propiedades
 2. Crea una propiedad de prueba única (nombre: `Self-Test-{timestamp}`)
-3. Verifica que se crearon las 8 carpetas de categorías correctamente
+3. Verifica que se crearon las carpetas de la estructura correctamente
 4. Sube 2 archivos de prueba (foto + PDF) a diferentes categorías
 5. Archiva la propiedad de prueba
 6. Reactiva la propiedad de prueba
@@ -633,18 +628,7 @@ https://tu-servicio.run.app/oauth/google/callback
 ### 3. Descargar credenciales
 
 1. Una vez creado el OAuth client, descarga el JSON haciendo clic en el icono de descarga
-2. El JSON tendrá esta estructura:
-```json
-{
-  "web": {
-    "client_id": "123456789-abcdefg.apps.googleusercontent.com",
-    "client_secret": "GOCSPX-abc123xyz",
-    "redirect_uris": ["https://tu-url.com/oauth/google/callback"],
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token"
-  }
-}
-```
+2. Ese JSON es el valor que debes configurar en `GOOGLE_OAUTH_CLIENT_JSON`
 
 ### 4. Configurar variables de entorno
 
@@ -683,16 +667,6 @@ GOOGLE_TOKEN_SECRET_NAME="GOOGLE_OAUTH_TOKEN_JSON"
 PORT=8080  # Auto-asignado por Cloud Run
 ```
 
-**Cómo funciona el redirect URI:**
-```javascript
-// Código simplificado
-if (PUBLIC_BASE_URL) {
-  redirect_uri = `${PUBLIC_BASE_URL}/oauth/google/callback`
-} else {
-  redirect_uri = `http://localhost:${PORT}/oauth/google/callback`
-}
-```
-
 ### 5. Autorizar la aplicación (primera vez o re-autorizar)
 
 Una vez configurado todo:
@@ -712,16 +686,12 @@ Una vez configurado todo:
 El token OAuth se guarda de forma diferente según el entorno:
 
 **Desarrollo local (`NODE_ENV=development` o `USE_SECRET_MANAGER=false`):**
-- Se guarda en: `./secrets/GOOGLE_OAUTH_TOKEN_JSON.local.json`
-- El directorio `./secrets/` está en `.gitignore` (no se commitea)
-- Puedes ver el archivo para debugging
-- **Seguridad:** No compartas este archivo, contiene credenciales de acceso
+- Se guarda en un archivo local dentro de `./secrets/` (excluido de git)
+- **Seguridad:** No compartas ni subas este directorio, contiene credenciales de acceso
 
 **Producción (`NODE_ENV=production` o `USE_SECRET_MANAGER=true`):**
-- Se guarda en: Google Secret Manager
-- Ubicación: `projects/{project-id}/secrets/GOOGLE_OAUTH_TOKEN_JSON/versions/{latest}`
-- Requiere permisos: `secretmanager.versions.add`
-- Automáticamente versionado y cifrado
+- Se guarda en Google Secret Manager, automáticamente versionado y cifrado
+- Requiere el permiso `secretmanager.versions.add` en el proyecto de GCP
 
 **Configuración manual (override):**
 ```bash
@@ -741,39 +711,13 @@ USE_SECRET_MANAGER=true
 **Causa:** El redirect URI enviado por la app NO coincide EXACTAMENTE con los configurados en Google Cloud Console.
 
 **Diagnóstico:**
-Revisa los logs del servidor. Deberías ver:
-```
-[GoogleReauth] Using redirect URI: http://localhost:8080/oauth/google/callback
-```
+Revisa los logs del servidor para ver qué redirect URI está usando la aplicación.
 
 **Solución:**
-1. **Identifica el redirect URI usado:**
-   - Revisa los logs del servidor
-   - O ejecuta `/google_login` en Telegram (en versiones futuras mostrará el URI)
-
-2. **Verifica la configuración:**
-   - Desarrollo local SIN cloudflared → `http://localhost:8080/oauth/google/callback`
-   - Desarrollo local CON cloudflared → `https://tu-tunnel.trycloudflare.com/oauth/google/callback`
-   - Producción Cloud Run → `https://tu-app.run.app/oauth/google/callback`
-
-3. **Agrega el URI exacto en Google Cloud Console:**
-   - Ve a [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials)
-   - Edita tu OAuth 2.0 Client ID
-   - En "Authorized redirect URIs", agrega el URI EXACTO (incluyendo `http://` vs `https://` y puerto)
-   - Guarda y espera 1-2 minutos
-
-4. **Reinicia el servidor** (para que tome las nuevas variables de entorno)
-
-**Ejemplo de configuración correcta:**
-```
-Authorized redirect URIs en Google Cloud Console:
-✅ http://localhost:8080/oauth/google/callback        (desarrollo local)
-✅ https://my-app-123.run.app/oauth/google/callback   (producción)
-
-Variables de entorno:
-Desarrollo: PUBLIC_BASE_URL no configurado (usa fallback localhost:8080)
-Producción: PUBLIC_BASE_URL=https://my-app-123.run.app
-```
+1. **Identifica el redirect URI usado** en los logs del servidor al arrancar
+2. **Verifica** que ese URI coincide EXACTAMENTE con el registrado en Google Cloud Console
+3. **Agrega el URI** en Google Cloud Console → Credentials → tu OAuth client → Authorized redirect URIs
+4. **Reinicia el servidor**
 
 #### Error: "Required parameter is missing: response_type"
 
@@ -799,11 +743,11 @@ Producción: PUBLIC_BASE_URL=https://my-app-123.run.app
 
 Solo los usuarios cuyo ID de Telegram esté en `ALLOWED_TELEGRAM_USER_IDS` pueden usar el bot. Los demás recibirán un mensaje de "No autorizado".
 
-Para obtener tu ID de Telegram, puedes usar bots como [@userinfobot](https://t.me/userinfobot).
+Para obtener tu ID de Telegram, consulta la documentación oficial de la API de Telegram o usa cualquier bot de diagnóstico de tu preferencia.
 
 ### Validación de webhook
 
-Telegram envía el header `X-Telegram-Bot-Api-Secret-Token` en cada petición al webhook. El servidor valida que este header coincida con `TELEGRAM_WEBHOOK_SECRET`. Esto previene que terceros envíen peticiones falsas al webhook.
+Cada petición al webhook es validada mediante un secret token que Telegram incluye en la cabecera HTTP de cada llamada. El servidor rechaza cualquier petición que no incluya el token correcto, previniendo llamadas falsas al endpoint.
 
 ### Gestión de secretos
 
