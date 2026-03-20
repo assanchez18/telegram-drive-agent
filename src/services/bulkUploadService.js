@@ -45,6 +45,8 @@ export async function uploadBulkFiles({
   propertyFolderId,
   category,
   year,
+  onFileStart,
+  onFileResult,
 }) {
   if (!files || !Array.isArray(files)) {
     throw new Error('Files array is required');
@@ -66,6 +68,8 @@ export async function uploadBulkFiles({
   const results = [];
 
   for (const file of files) {
+    if (onFileStart) await onFileStart(file.fileName);
+
     try {
       const buffer = await downloadTelegramFile(bot, botToken, file.fileId);
 
@@ -77,12 +81,16 @@ export async function uploadBulkFiles({
         folderId: targetFolderId,
       });
 
+      if (onFileResult) await onFileResult(file.fileName, true, null);
+
       results.push({
         success: true,
         fileName: file.fileName,
         driveFileId: uploaded.id,
       });
     } catch (error) {
+      if (onFileResult) await onFileResult(file.fileName, false, error.message);
+
       results.push({
         success: false,
         fileName: file.fileName,

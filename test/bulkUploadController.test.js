@@ -14,7 +14,9 @@ describe('bulkUploadController', () => {
     mockBot = {
       onText: vi.fn(),
       on: vi.fn(),
-      sendMessage: vi.fn().mockResolvedValue({}),
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 999 }),
+      editMessageText: vi.fn().mockResolvedValue({}),
+      editMessageReplyMarkup: vi.fn().mockResolvedValue({}),
       answerCallbackQuery: vi.fn().mockResolvedValue({}),
       setMyCommands: vi.fn().mockResolvedValue({}),
     };
@@ -840,7 +842,7 @@ describe('bulkUploadController', () => {
       expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith('callback-1');
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         12345,
-        expect.stringContaining('Subiendo archivos')
+        expect.stringContaining('Empezando a subir')
       );
     });
 
@@ -874,7 +876,7 @@ describe('bulkUploadController', () => {
       expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith('callback-1');
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         12345,
-        expect.stringContaining('Subiendo archivos')
+        expect.stringContaining('Empezando a subir')
       );
     });
 
@@ -975,7 +977,7 @@ describe('bulkUploadController', () => {
 
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         12345,
-        expect.stringContaining('Subiendo archivos')
+        expect.stringContaining('Empezando a subir')
       );
     });
 
@@ -1017,6 +1019,73 @@ describe('bulkUploadController', () => {
     beforeEach(() => {
       callbackHandler = mockBot.on.mock.calls.find(call => call[0] === 'callback_query')[1];
       mockBot.getFile = vi.fn().mockResolvedValue({ file_path: 'documents/file.pdf' });
+    });
+
+    it('envía mensaje de anuncio con el total de archivos al iniciar', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [
+        { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
+        { fileId: 'file-2', fileName: 'test2.pdf', mimeType: 'application/pdf' },
+      ];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        12345,
+        expect.stringContaining('Empezando a subir 2 archivos')
+      );
+    });
+
+    it('envía mensaje de anuncio en singular para un solo archivo', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        12345,
+        expect.stringContaining('Empezando a subir 1 archivo...')
+      );
     });
 
     it('muestra mensaje de éxito para subidas exitosas', async () => {
@@ -1128,6 +1197,212 @@ describe('bulkUploadController', () => {
         expect.any(Array),
         expect.objectContaining({ scope: { type: 'chat', chat_id: 12345 } })
       );
+    });
+
+    it('edita el mensaje de progreso con el nombre de cada archivo', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [
+        { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
+        { fileId: 'file-2', fileName: 'test2.pdf', mimeType: 'application/pdf' },
+      ];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('Subiendo archivo test1.pdf'),
+        expect.objectContaining({ chat_id: 12345, message_id: 999 })
+      );
+      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('test1.pdf subido con éxito'),
+        expect.objectContaining({ chat_id: 12345, message_id: 999 })
+      );
+      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('Subiendo archivo test2.pdf'),
+        expect.objectContaining({ chat_id: 12345, message_id: 999 })
+      );
+      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('test2.pdf subido con éxito'),
+        expect.objectContaining({ chat_id: 12345, message_id: 999 })
+      );
+    });
+
+    it('edita el mensaje de progreso con error cuando falla un archivo', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockRejectedValue(new Error('Download failed'));
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('test1.pdf no pudo ser subido'),
+        expect.objectContaining({ chat_id: 12345, message_id: 999 })
+      );
+    });
+
+    it('elimina los botones inline al hacer click en bulk_confirm', async () => {
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.editMessageReplyMarkup).toHaveBeenCalledWith(
+        { inline_keyboard: [] },
+        { chat_id: 12345, message_id: 888 }
+      );
+    });
+
+    it('elimina los botones inline al hacer click en bulk_confirm_replace', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.editMessageReplyMarkup).toHaveBeenCalledWith(
+        { inline_keyboard: [] },
+        { chat_id: 12345, message_id: 888 }
+      );
+    });
+
+    it('continúa la subida si editMessageText falla en onFileStart', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      mockBot.editMessageText.mockRejectedValue(new Error('Telegram edit error'));
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      const lastCall = mockBot.sendMessage.mock.calls[mockBot.sendMessage.mock.calls.length - 1];
+      expect(lastCall[1]).toContain('Subidos 1 archivo');
+    });
+
+    it('continúa la subida si editMessageText falla en onFileResult', async () => {
+      const axios = await import('axios');
+      vi.spyOn(axios.default, 'get').mockResolvedValue({ data: Buffer.from('file content') });
+
+      mockBot.editMessageText
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce(new Error('Telegram edit error'));
+
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_confirmation';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.category = 'Ingresos';
+      session.year = '2025';
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+      session.botToken = 'bot-token-123';
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 }, message_id: 888 },
+        data: 'bulk_confirm_replace',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      const lastCall = mockBot.sendMessage.mock.calls[mockBot.sendMessage.mock.calls.length - 1];
+      expect(lastCall[1]).toContain('Subidos 1 archivo');
     });
 
     it('maneja error catastrófico durante upload y restaura estado', async () => {

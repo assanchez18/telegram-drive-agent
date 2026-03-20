@@ -183,6 +183,10 @@ Para cancelar: /cancel.`
 
     if (data === 'bulk_confirm') {
       await bot.answerCallbackQuery(callbackQuery.id);
+      await bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        { chat_id: chatId, message_id: callbackQuery.message.message_id }
+      );
       updateBulkSessionState(chatId, 'checking_duplicates', { botToken });
       await checkAndConfirmBulkUpload({
         bot,
@@ -196,6 +200,10 @@ Para cancelar: /cancel.`
 
     if (data === 'bulk_confirm_replace') {
       await bot.answerCallbackQuery(callbackQuery.id);
+      await bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        { chat_id: chatId, message_id: callbackQuery.message.message_id }
+      );
       await executeBulkUpload({
         bot,
         drive,
@@ -365,10 +373,40 @@ async function checkAndConfirmBulkUpload({ bot, drive, chatId, session, isDev })
 }
 
 async function executeBulkUpload({ bot, drive, botToken, chatId, session, isDev }) {
+  const prefix = isDev ? 'DEV:: ' : '';
   try {
-    await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}⏳ Subiendo archivos...`);
-
     const filesWithNames = renameFilesForUpload(session.files, session.baseName);
+
+    const fileCount = filesWithNames.length;
+    await bot.sendMessage(
+      chatId,
+      `${prefix}📦 Empezando a subir ${fileCount} archivo${fileCount > 1 ? 's' : ''}...`
+    );
+
+    const progressMsg = await bot.sendMessage(chatId, `${prefix}⏳ Preparando...`);
+    const progressMsgId = progressMsg.message_id;
+
+    const onFileStart = async (fileName) => {
+      try {
+        await bot.editMessageText(
+          `${prefix}⏳ Subiendo archivo ${fileName}...`,
+          { chat_id: chatId, message_id: progressMsgId }
+        );
+      } catch (err) {
+        console.warn('Error actualizando mensaje de progreso:', err.message);
+      }
+    };
+
+    const onFileResult = async (fileName, success) => {
+      try {
+        const text = success
+          ? `${prefix}✅ Archivo ${fileName} subido con éxito`
+          : `${prefix}❌ Archivo ${fileName} no pudo ser subido`;
+        await bot.editMessageText(text, { chat_id: chatId, message_id: progressMsgId });
+      } catch (err) {
+        console.warn('Error actualizando mensaje de progreso:', err.message);
+      }
+    };
 
     const results = await uploadBulkFiles({
       drive,
@@ -378,12 +416,14 @@ async function executeBulkUpload({ bot, drive, botToken, chatId, session, isDev 
       propertyFolderId: session.selectedProperty.propertyFolderId,
       category: session.category,
       year: session.year,
+      onFileStart,
+      onFileResult,
     });
 
     const successCount = results.filter((r) => r.success).length;
     const failCount = results.filter((r) => !r.success).length;
 
-    let message = `${isDev ? 'DEV:: ' : ''}✅ Subidos ${successCount} archivo${successCount > 1 ? 's' : ''}`;
+    let message = `${prefix}✅ Subidos ${successCount} archivo${successCount > 1 ? 's' : ''}`;
 
     if (failCount > 0) {
       const failedFiles = results
@@ -411,7 +451,7 @@ async function executeBulkUpload({ bot, drive, botToken, chatId, session, isDev 
     }
     await bot.sendMessage(
       chatId,
-      `${isDev ? 'DEV:: ' : ''}❌ Error al subir archivos. Revisa los logs.`
+      `${prefix}❌ Error al subir archivos. Revisa los logs.`
     );
   }
 }

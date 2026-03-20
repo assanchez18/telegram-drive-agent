@@ -62,6 +62,141 @@ describe('uploadBulkFiles', () => {
     expect(results[1].error).toBeDefined();
   });
 
+  it('llama a onFileStart y onFileResult por cada archivo exitoso', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', name: 'FolderName' },
+        }),
+      },
+    };
+
+    const mockBot = {
+      getFile: vi.fn().mockResolvedValue({ file_path: 'documents/file.pdf' }),
+    };
+
+    axios.get.mockResolvedValue({ data: Buffer.from('file content') });
+
+    const onFileStart = vi.fn().mockResolvedValue(undefined);
+    const onFileResult = vi.fn().mockResolvedValue(undefined);
+
+    const files = [
+      { fileId: 'file-1', fileName: 'doc1.pdf', mimeType: 'application/pdf' },
+      { fileId: 'file-2', fileName: 'doc2.pdf', mimeType: 'application/pdf' },
+    ];
+
+    await uploadBulkFiles({
+      drive: mockDrive,
+      bot: mockBot,
+      botToken: 'token',
+      files,
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.INGRESOS,
+      year: '2024',
+      onFileStart,
+      onFileResult,
+    });
+
+    expect(onFileStart).toHaveBeenCalledTimes(2);
+    expect(onFileStart).toHaveBeenNthCalledWith(1, 'doc1.pdf');
+    expect(onFileStart).toHaveBeenNthCalledWith(2, 'doc2.pdf');
+    expect(onFileResult).toHaveBeenCalledTimes(2);
+    expect(onFileResult).toHaveBeenNthCalledWith(1, 'doc1.pdf', true, null);
+    expect(onFileResult).toHaveBeenNthCalledWith(2, 'doc2.pdf', true, null);
+  });
+
+  it('llama a onFileResult con success=false cuando falla la descarga', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', name: 'FolderName' },
+        }),
+      },
+    };
+
+    const mockBot = {
+      getFile: vi.fn().mockRejectedValue(new Error('Download failed')),
+    };
+
+    const onFileStart = vi.fn().mockResolvedValue(undefined);
+    const onFileResult = vi.fn().mockResolvedValue(undefined);
+
+    const results = await uploadBulkFiles({
+      drive: mockDrive,
+      bot: mockBot,
+      botToken: 'token',
+      files: [{ fileId: 'file-1', fileName: 'doc1.pdf', mimeType: 'application/pdf' }],
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.INGRESOS,
+      year: '2024',
+      onFileStart,
+      onFileResult,
+    });
+
+    expect(onFileStart).toHaveBeenCalledWith('doc1.pdf');
+    expect(onFileResult).toHaveBeenCalledWith('doc1.pdf', false, 'Download failed');
+    expect(results[0].success).toBe(false);
+  });
+
+  it('funciona correctamente sin callbacks opcionales en subida exitosa', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', name: 'FolderName' },
+        }),
+      },
+    };
+
+    const mockBot = {
+      getFile: vi.fn().mockResolvedValue({ file_path: 'documents/file.pdf' }),
+    };
+
+    axios.get.mockResolvedValue({ data: Buffer.from('file content') });
+
+    const results = await uploadBulkFiles({
+      drive: mockDrive,
+      bot: mockBot,
+      botToken: 'token',
+      files: [{ fileId: 'file-1', fileName: 'doc1.pdf', mimeType: 'application/pdf' }],
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.INGRESOS,
+      year: '2024',
+    });
+
+    expect(results[0].success).toBe(true);
+  });
+
+  it('funciona correctamente sin callbacks opcionales cuando falla la descarga', async () => {
+    const mockDrive = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'folder-id', name: 'FolderName' },
+        }),
+      },
+    };
+
+    const mockBot = {
+      getFile: vi.fn().mockRejectedValue(new Error('Download failed')),
+    };
+
+    const results = await uploadBulkFiles({
+      drive: mockDrive,
+      bot: mockBot,
+      botToken: 'token',
+      files: [{ fileId: 'file-1', fileName: 'doc1.pdf', mimeType: 'application/pdf' }],
+      propertyFolderId: 'prop-123',
+      category: DOCUMENT_CATEGORIES.INGRESOS,
+      year: '2024',
+    });
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].error).toBe('Download failed');
+  });
+
   it('lanza error si falta drive', async () => {
     await expect(uploadBulkFiles({
       bot: {},
