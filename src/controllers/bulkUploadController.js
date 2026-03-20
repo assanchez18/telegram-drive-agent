@@ -1,5 +1,5 @@
 import { CATEGORY_FOLDER_MAPPING, buildCategoryButtons } from '../domain/DocumentCategory.js';
-import { getCurrentYear, validateYear } from '../domain/Year.js';
+import { getCurrentYear, getPreviousYear, validateYear } from '../domain/Year.js';
 import { BulkFile } from '../domain/BulkFile.js';
 import {
   startBulkSession,
@@ -151,8 +151,10 @@ Para cancelar: /cancel.`
         updateBulkSessionState(chatId, 'waiting_for_year', { category });
 
         const currentYear = getCurrentYear();
+        const previousYear = getPreviousYear();
         const yearButtons = [
           [{ text: `${currentYear} ✅`, callback_data: `bulk_year_${currentYear}` }],
+          [{ text: previousYear, callback_data: `bulk_year_${previousYear}` }],
           [{ text: 'Otro año', callback_data: 'bulk_year_custom' }],
           [{ text: '❌ Cancelar', callback_data: 'bulk_cancel' }],
         ];

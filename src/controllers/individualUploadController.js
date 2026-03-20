@@ -1,5 +1,5 @@
 import { getCategoryFolderPath, CATEGORY_FOLDER_MAPPING, buildCategoryButtons } from '../domain/DocumentCategory.js';
-import { getCurrentYear } from '../domain/Year.js';
+import { getCurrentYear, getPreviousYear } from '../domain/Year.js';
 import {
   startIndividualUploadSession,
   getIndividualUploadSession,
@@ -112,8 +112,10 @@ async function onCategorySelected({ callbackQuery, chatId, data, session, bot, d
   updateIndividualUploadSessionState(chatId, 'waiting_for_year', { category });
 
   const currentYear = getCurrentYear();
+  const previousYear = getPreviousYear();
   const yearButtons = [
     [{ text: `${currentYear} ✅`, callback_data: `individual_year_${currentYear}` }],
+    [{ text: previousYear, callback_data: `individual_year_${previousYear}` }],
     [{ text: 'Otro año', callback_data: 'individual_year_custom' }],
     [{ text: '❌ Cancelar', callback_data: 'individual_cancel' }],
   ];

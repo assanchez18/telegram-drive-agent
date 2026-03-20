@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateYear, getCurrentYear } from '../src/domain/Year.js';
+import { validateYear, getCurrentYear, getPreviousYear } from '../src/domain/Year.js';
 
 describe('validateYear', () => {
   it('valida año correcto en formato YYYY', () => {
@@ -52,5 +52,13 @@ describe('getCurrentYear', () => {
     const result = getCurrentYear();
     const currentYear = String(new Date().getFullYear());
     expect(result).toBe(currentYear);
+  });
+});
+
+describe('getPreviousYear', () => {
+  it('devuelve año anterior como string', () => {
+    const result = getPreviousYear();
+    const previousYear = String(new Date().getFullYear() - 1);
+    expect(result).toBe(previousYear);
   });
 });

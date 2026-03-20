@@ -21,3 +21,7 @@ export function validateYear(year) {
 export function getCurrentYear() {
   return String(new Date().getFullYear());
 }
+
+export function getPreviousYear() {
+  return String(new Date().getFullYear() - 1);
+}
