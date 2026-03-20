@@ -101,7 +101,7 @@ describe('selfTestService', () => {
         ],
       });
 
-      // Paso 3: Verificar carpetas (resolveCategoryFolderId se llama 8 veces)
+      // Paso 3: Verificar carpetas (resolveCategoryFolderId se llama 5 veces)
       vi.mocked(driveAdapter.resolveCategoryFolderId).mockResolvedValue('category-folder-id');
 
       // Paso 4: Subir archivos (2 uploads)

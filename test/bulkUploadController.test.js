@@ -173,7 +173,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_custom_year';
       session.selectedProperty = { address: 'Test', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.files = [];
 
       const msg = {
@@ -222,7 +222,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_basename';
       session.selectedProperty = { address: 'Test', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [
         {
@@ -254,7 +254,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_basename';
       session.selectedProperty = { address: 'Test', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [
         {
@@ -311,7 +311,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_basename';
       session.selectedProperty = { address: 'Test', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'photo-1', fileName: null, mimeType: 'image/jpeg' }];
 
@@ -605,7 +605,7 @@ describe('bulkUploadController', () => {
           reply_markup: expect.objectContaining({
             inline_keyboard: expect.arrayContaining([
               expect.arrayContaining([
-                expect.objectContaining({ text: 'Contratos' }),
+                expect.objectContaining({ text: 'Ingresos' }),
               ]),
             ]),
           }),
@@ -630,7 +630,7 @@ describe('bulkUploadController', () => {
       const callbackQuery = {
         id: 'callback-1',
         message: { chat: { id: 12345 } },
-        data: 'bulk_category_Seguros',
+        data: 'bulk_category_Ingresos',
       };
 
       await callbackHandler(callbackQuery);
@@ -647,8 +647,76 @@ describe('bulkUploadController', () => {
       );
 
       const updatedSession = getBulkSession(12345);
-      expect(updatedSession.category).toBe('Seguros');
+      expect(updatedSession.category).toBe('Ingresos');
       expect(updatedSession.state).toBe('waiting_for_year');
+    });
+
+    it('salta selección de año para categoría sin año requerido (Gestión)', async () => {
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_category';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
+
+      const callbackQuery = {
+        id: 'callback-1',
+        message: { chat: { id: 12345 } },
+        data: 'bulk_category_Gestion',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith('callback-1');
+
+      const yearAsk = mockBot.sendMessage.mock.calls.find(c => c[1]?.includes?.('¿Año?'));
+      expect(yearAsk).toBeUndefined();
+
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        12345,
+        expect.stringContaining('Confirmar'),
+        expect.any(Object)
+      );
+
+      const updatedSession = getBulkSession(12345);
+      expect(updatedSession.category).toBe('Gestion');
+    });
+
+    it('pide nombre base para categoría sin año cuando hay archivos sin nombre', async () => {
+      const bulkHandler = mockBot.onText.mock.calls.find(call =>
+        call[0].toString() === '/\\/bulk$/'
+      )[1];
+
+      await bulkHandler({ chat: { id: 12345 } });
+
+      const session = getBulkSession(12345);
+      session.state = 'waiting_for_category';
+      session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
+      session.files = [{ fileId: 'photo-1', fileName: null, mimeType: 'image/jpeg' }];
+
+      const callbackQuery = {
+        id: 'callback-2',
+        message: { chat: { id: 12345 } },
+        data: 'bulk_category_Archivo',
+      };
+
+      await callbackHandler(callbackQuery);
+
+      expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith('callback-2');
+
+      const yearAsk = mockBot.sendMessage.mock.calls.find(c => c[1]?.includes?.('¿Año?'));
+      expect(yearAsk).toBeUndefined();
+
+      const lastCall = mockBot.sendMessage.mock.calls[mockBot.sendMessage.mock.calls.length - 1];
+      expect(lastCall[1]).toContain('sin nombre');
+      expect(lastCall[1]).toContain('nombre base');
+
+      const updatedSession = getBulkSession(12345);
+      expect(updatedSession.state).toBe('waiting_for_basename');
     });
 
     it('maneja selección de año actual', async () => {
@@ -661,7 +729,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_year';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
 
       const callbackQuery = {
@@ -690,7 +758,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_year';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.files = [
         { fileId: 'photo-1', fileName: 'photo_unique123.jpg', mimeType: 'image/jpeg' },
         { fileId: 'photo-2', fileName: null, mimeType: 'image/jpeg' },
@@ -756,7 +824,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -790,7 +858,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -851,7 +919,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -892,7 +960,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -923,7 +991,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -964,7 +1032,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [
         { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
@@ -1004,7 +1072,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [
         { fileId: 'file-1', fileName: 'test1.pdf', mimeType: 'application/pdf' },
@@ -1038,7 +1106,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';
@@ -1085,7 +1153,7 @@ describe('bulkUploadController', () => {
       const session = getBulkSession(12345);
       session.state = 'waiting_for_confirmation';
       session.selectedProperty = { address: 'Calle Test 123', propertyFolderId: 'folder-123' };
-      session.category = 'Contratos';
+      session.category = 'Ingresos';
       session.year = '2025';
       session.files = [{ fileId: 'file-1', fileName: 'test.pdf', mimeType: 'application/pdf' }];
       session.botToken = 'bot-token-123';

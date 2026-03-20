@@ -9,6 +9,7 @@ import {
   checkFileExists,
   checkMultipleFilesExist,
 } from '../src/adapters/driveAdapter.js';
+import { FOLDER_NAMES } from '../src/domain/DocumentCategory.js';
 
 describe('findOrCreateFolder', () => {
   it('devuelve carpeta existente si se encuentra', async () => {
@@ -177,15 +178,13 @@ describe('createFolderStructure', () => {
     const createdNames = Object.values(createdFolders).map((f) => f.name);
     expect(createdNames).toContain('Viviendas');
     expect(createdNames).toContain('Calle Mayor 123');
-    expect(createdNames).toContain('01_Contratos');
+    expect(createdNames).toContain(FOLDER_NAMES.RENTA);
     expect(createdNames).toContain('2024');
-    expect(createdNames).toContain('02_Inquilinos_Sensible');
-    expect(createdNames).toContain('03_Seguros');
-    expect(createdNames).toContain('04_Suministros');
-    expect(createdNames).toContain('05_Comunidad_Impuestos');
-    expect(createdNames).toContain('06_Facturas_Reformas');
-    expect(createdNames).toContain('07_Fotos_Estado');
-    expect(createdNames).toContain('99_Otros');
+    expect(createdNames).toContain('Ingresos');
+    expect(createdNames).toContain('Gastos');
+    expect(createdNames).toContain(FOLDER_NAMES.GESTION);
+    expect(createdNames).toContain(FOLDER_NAMES.ARCHIVO);
+    expect(createdNames).toContain('Fotos');
   });
 
   it('es idempotente - no recrea carpetas existentes', async () => {
@@ -249,11 +248,18 @@ describe('createFolderStructure', () => {
     ).rejects.toThrow('Year is required');
   });
 
-  it('crea subcarpetas anidadas correctamente', async () => {
+  it('crea subcarpetas anidadas correctamente (Renta → año → Ingresos/Gastos)', async () => {
     const createdFolders = [];
     const mockDrive = {
       files: {
-        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        list: vi.fn().mockImplementation(async ({ q }) => {
+          const nameMatch = q.match(/name='([^']+)'/);
+          const parentMatch = q.match(/'([^']+)' in parents/);
+          const name = nameMatch ? nameMatch[1] : '';
+          const parent = parentMatch ? parentMatch[1] : '';
+          const existing = createdFolders.find(f => f.name === name && f.parents[0] === parent);
+          return { data: { files: existing ? [existing] : [] } };
+        }),
         create: vi.fn().mockImplementation(async ({ requestBody }) => {
           const folder = {
             id: `folder-${createdFolders.length + 1}`,
@@ -273,13 +279,23 @@ describe('createFolderStructure', () => {
       year: '2024',
     });
 
-    const facturasReformas = createdFolders.find((f) => f.name === '06_Facturas_Reformas');
-    expect(facturasReformas).toBeDefined();
+    const rentaFolder = createdFolders.find((f) => f.name === FOLDER_NAMES.RENTA);
+    expect(rentaFolder).toBeDefined();
 
-    const year2024InFacturas = createdFolders.find(
-      (f) => f.name === '2024' && f.parents[0] === facturasReformas.id
+    const yearInRenta = createdFolders.find(
+      (f) => f.name === '2024' && f.parents[0] === rentaFolder.id
     );
-    expect(year2024InFacturas).toBeDefined();
+    expect(yearInRenta).toBeDefined();
+
+    const ingresosInYear = createdFolders.find(
+      (f) => f.name === 'Ingresos' && f.parents[0] === yearInRenta.id
+    );
+    expect(ingresosInYear).toBeDefined();
+
+    const gastosInYear = createdFolders.find(
+      (f) => f.name === 'Gastos' && f.parents[0] === yearInRenta.id
+    );
+    expect(gastosInYear).toBeDefined();
   });
 });
 
@@ -717,3 +733,4 @@ describe('checkMultipleFilesExist', () => {
     ).rejects.toThrow('File names array is required');
   });
 });
+

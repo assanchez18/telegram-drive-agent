@@ -1,4 +1,4 @@
-import { getCategoryFolderPath } from '../domain/DocumentCategory.js';
+import { getCategoryFolderPath, CATEGORY_FOLDER_MAPPING, buildCategoryButtons } from '../domain/DocumentCategory.js';
 import { getCurrentYear } from '../domain/Year.js';
 import {
   startIndividualUploadSession,
@@ -22,7 +22,7 @@ export function initializeIndividualUploadHandlers({ bot, drive, baseFolderId, b
 
     if (data === 'individual_cancel') return await onCancelled({ callbackQuery, chatId, bot, isDev });
     if (data.startsWith('individual_property_')) return await onPropertySelected({ callbackQuery, chatId, data, session, bot, isDev });
-    if (data.startsWith('individual_category_')) return await onCategorySelected({ callbackQuery, chatId, data, bot, isDev });
+    if (data.startsWith('individual_category_')) return await onCategorySelected({ callbackQuery, chatId, data, session, bot, drive, botToken, isDev });
     if (data.startsWith('individual_year_')) return await onYearSelected({ callbackQuery, chatId, data, session, bot, drive, botToken, isDev });
 
     await bot.answerCallbackQuery(callbackQuery.id);
@@ -76,14 +76,7 @@ async function onPropertySelected({ callbackQuery, chatId, data, session, bot, i
   updateIndividualUploadSessionState(chatId, 'waiting_for_category', { selectedProperty });
 
   const categoryButtons = [
-    [{ text: 'Contratos', callback_data: 'individual_category_Contratos' }],
-    [{ text: 'Inquilinos (Sensible)', callback_data: 'individual_category_Inquilinos_Sensible' }],
-    [{ text: 'Seguros', callback_data: 'individual_category_Seguros' }],
-    [{ text: 'Suministros', callback_data: 'individual_category_Suministros' }],
-    [{ text: 'Comunidad/Impuestos', callback_data: 'individual_category_Comunidad_Impuestos' }],
-    [{ text: 'Facturas/Reformas', callback_data: 'individual_category_Facturas_Reformas' }],
-    [{ text: 'Fotos Estado', callback_data: 'individual_category_Fotos_Estado' }],
-    [{ text: 'Otros', callback_data: 'individual_category_Otros' }],
+    ...buildCategoryButtons('individual_category_'),
     [{ text: '❌ Cancelar', callback_data: 'individual_cancel' }],
   ];
 
@@ -95,8 +88,26 @@ async function onPropertySelected({ callbackQuery, chatId, data, session, bot, i
 
 // ─── Paso 3: Selección de categoría ──────────────────────────────────────────
 
-async function onCategorySelected({ callbackQuery, chatId, data, bot, isDev }) {
+async function onCategorySelected({ callbackQuery, chatId, data, session, bot, drive, botToken, isDev }) {
   const category = data.replace('individual_category_', '');
+  const mapping = CATEGORY_FOLDER_MAPPING[category];
+
+  await bot.answerCallbackQuery(callbackQuery.id);
+
+  if (mapping && !mapping.requiresYear) {
+    updateIndividualUploadSessionState(chatId, 'waiting_for_filename', { category, year: null });
+    const updatedSession = getIndividualUploadSession(chatId);
+
+    if (needsUserProvidedName(session.fileInfo.originalName)) {
+      await bot.sendMessage(
+        chatId,
+        `${isDev ? 'DEV:: ' : ''}¿Qué nombre quieres darle al archivo?\n\nEnvía el nombre (sin extensión) o "skip" para usar nombre automático:`
+      );
+    } else {
+      await uploadFileToDrive({ bot, drive, botToken, chatId, session: updatedSession, fileName: session.fileInfo.originalName, isDev });
+    }
+    return;
+  }
 
   updateIndividualUploadSessionState(chatId, 'waiting_for_year', { category });
 
@@ -107,7 +118,6 @@ async function onCategorySelected({ callbackQuery, chatId, data, bot, isDev }) {
     [{ text: '❌ Cancelar', callback_data: 'individual_cancel' }],
   ];
 
-  await bot.answerCallbackQuery(callbackQuery.id);
   await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}¿Año?`, {
     reply_markup: { inline_keyboard: yearButtons },
   });
