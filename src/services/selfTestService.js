@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { addProperty, listProperties, archiveProperty, unarchiveProperty, deleteProperty } from './propertyService.js';
 import { uploadBufferToDrive, resolveCategoryFolderId } from '../adapters/driveAdapter.js';
-import { DOCUMENT_CATEGORIES, getCategoryFolderPath } from '../domain/DocumentCategory.js';
+import { DOCUMENT_CATEGORIES, FOLDER_NAMES, getCategoryFolderPath } from '../domain/DocumentCategory.js';
 import { getCurrentYear } from '../domain/Year.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,14 +24,11 @@ export function generateTestPropertyName() {
  */
 async function verifyFolderStructure({ drive, propertyFolderId, year }) {
   const expectedFolders = [
-    { name: `01_Contratos/${year}`, path: ['01_Contratos', year] },
-    { name: '02_Inquilinos_Sensible', path: ['02_Inquilinos_Sensible'] },
-    { name: `03_Seguros/${year}`, path: ['03_Seguros', year] },
-    { name: `04_Suministros/${year}`, path: ['04_Suministros', year] },
-    { name: `05_Comunidad_Impuestos/${year}`, path: ['05_Comunidad_Impuestos', year] },
-    { name: `06_Facturas_Reformas/${year}`, path: ['06_Facturas_Reformas', year] },
-    { name: '07_Fotos_Estado', path: ['07_Fotos_Estado'] },
-    { name: '99_Otros', path: ['99_Otros'] },
+    { name: `${FOLDER_NAMES.RENTA}/${year}/Ingresos`, path: [FOLDER_NAMES.RENTA, year, 'Ingresos'] },
+    { name: `${FOLDER_NAMES.RENTA}/${year}/Gastos`,   path: [FOLDER_NAMES.RENTA, year, 'Gastos'] },
+    { name: FOLDER_NAMES.GESTION,                     path: [FOLDER_NAMES.GESTION] },
+    { name: FOLDER_NAMES.ARCHIVO,                     path: [FOLDER_NAMES.ARCHIVO] },
+    { name: `${FOLDER_NAMES.ARCHIVO}/Fotos`,          path: [FOLDER_NAMES.ARCHIVO, 'Fotos'] },
   ];
 
   for (const folder of expectedFolders) {
@@ -64,9 +61,9 @@ async function uploadTestFiles({ drive, propertyFolderId }) {
 
   const results = [];
 
-  // Subir foto a Fotos_Estado
+  // Subir foto a Fotos (nueva ruta: 03_Archivo/Fotos)
   try {
-    const fotosCategoryPath = getCategoryFolderPath(DOCUMENT_CATEGORIES.FOTOS_ESTADO);
+    const fotosCategoryPath = getCategoryFolderPath(DOCUMENT_CATEGORIES.FOTOS);
     const fotosFolderId = await resolveCategoryFolderId({
       drive,
       propertyFolderId,
@@ -84,25 +81,25 @@ async function uploadTestFiles({ drive, propertyFolderId }) {
     results.push({
       success: true,
       file: 'selftest-photo.jpg',
-      category: 'Fotos_Estado',
+      category: 'Fotos',
       fileId: uploadedPhoto.id,
     });
   } catch (error) {
     results.push({
       success: false,
       file: 'selftest-photo.jpg',
-      category: 'Fotos_Estado',
+      category: 'Fotos',
       error: error.message,
     });
   }
 
-  // Subir PDF a Contratos
+  // Subir PDF a Ingresos (nueva ruta: 01_Renta/{year}/Ingresos)
   try {
-    const contratosCategoryPath = getCategoryFolderPath(DOCUMENT_CATEGORIES.CONTRATOS, year);
-    const contratosFolderId = await resolveCategoryFolderId({
+    const ingresosCategoryPath = getCategoryFolderPath(DOCUMENT_CATEGORIES.INGRESOS, year);
+    const ingresosFolderId = await resolveCategoryFolderId({
       drive,
       propertyFolderId,
-      categoryPath: contratosCategoryPath,
+      categoryPath: ingresosCategoryPath,
     });
 
     const uploadedDoc = await uploadBufferToDrive({
@@ -110,20 +107,20 @@ async function uploadTestFiles({ drive, propertyFolderId }) {
       buffer: docBuffer,
       fileName: 'selftest-doc.pdf',
       mimeType: 'application/pdf',
-      folderId: contratosFolderId,
+      folderId: ingresosFolderId,
     });
 
     results.push({
       success: true,
       file: 'selftest-doc.pdf',
-      category: `Contratos/${year}`,
+      category: `Ingresos/${year}`,
       fileId: uploadedDoc.id,
     });
   } catch (error) {
     results.push({
       success: false,
       file: 'selftest-doc.pdf',
-      category: `Contratos/${year}`,
+      category: `Ingresos/${year}`,
       error: error.message,
     });
   }
@@ -257,7 +254,7 @@ export async function executeSelfTest({ drive, baseFolderId }) {
     });
 
     report.steps[report.steps.length - 1].status = 'success';
-    report.steps[report.steps.length - 1].result = '8 carpetas verificadas correctamente';
+    report.steps[report.steps.length - 1].result = '5 carpetas verificadas correctamente';
 
     // Paso 4: Subir archivos de prueba
     currentStep++;

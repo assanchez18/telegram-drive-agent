@@ -17,23 +17,22 @@ const Command = Object.freeze({
   STATUS:             { matches: (msg) => msg.text?.startsWith('/status') },
 });
 
-export const isStart =            (msg) => Command.START.matches(msg);
-export const isHelp =             (msg) => Command.HELP.matches(msg);
-export const isCancel =           (msg) => Command.CANCEL.matches(msg);
-export const isAddProperty =      (msg) => Command.ADD_PROPERTY.matches(msg);
-export const isListProperties =   (msg) => Command.LIST_PROPERTIES.matches(msg);
-export const isDeleteProperty =   (msg) => Command.DELETE_PROPERTY.matches(msg);
-export const isArchive =          (msg) => Command.ARCHIVE.matches(msg);
-export const isArchiveProperty =  (msg) => Command.ARCHIVE_PROPERTY.matches(msg);
-export const isListArchived =     (msg) => Command.LIST_ARCHIVED.matches(msg);
-export const isUnarchiveProperty =(msg) => Command.UNARCHIVE_PROPERTY.matches(msg);
-export const isBulk =             (msg) => Command.BULK.matches(msg);
-export const isBulkDone =         (msg) => Command.BULK_DONE.matches(msg);
-export const isSelfTest =         (msg) => Command.SELF_TEST.matches(msg);
-export const isGoogleLogin =      (msg) => Command.GOOGLE_LOGIN.matches(msg);
-export const isVersion =          (msg) => Command.VERSION.matches(msg);
-export const isStatus =           (msg) => Command.STATUS.matches(msg);
-
+export const isStart =              (msg) => Command.START.matches(msg);
+export const isHelp =               (msg) => Command.HELP.matches(msg);
+export const isCancel =             (msg) => Command.CANCEL.matches(msg);
+export const isAddProperty =        (msg) => Command.ADD_PROPERTY.matches(msg);
+export const isListProperties =     (msg) => Command.LIST_PROPERTIES.matches(msg);
+export const isDeleteProperty =     (msg) => Command.DELETE_PROPERTY.matches(msg);
+export const isArchive =            (msg) => Command.ARCHIVE.matches(msg);
+export const isArchiveProperty =    (msg) => Command.ARCHIVE_PROPERTY.matches(msg);
+export const isListArchived =       (msg) => Command.LIST_ARCHIVED.matches(msg);
+export const isUnarchiveProperty =  (msg) => Command.UNARCHIVE_PROPERTY.matches(msg);
+export const isBulk =               (msg) => Command.BULK.matches(msg);
+export const isBulkDone =           (msg) => Command.BULK_DONE.matches(msg);
+export const isSelfTest =           (msg) => Command.SELF_TEST.matches(msg);
+export const isGoogleLogin =        (msg) => Command.GOOGLE_LOGIN.matches(msg);
+export const isVersion =            (msg) => Command.VERSION.matches(msg);
+export const isStatus =             (msg) => Command.STATUS.matches(msg);
 const generalCommands = [
   { command: 'start', description: 'Mensaje de bienvenida' },
   { command: 'help', description: 'Mostrar ayuda' },

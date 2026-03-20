@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { uploadBulkFiles, validateBulkUploadRequest, checkDuplicateFiles } from '../src/services/bulkUploadService.js';
-import { DOCUMENT_CATEGORIES } from '../src/domain/DocumentCategory.js';
+import { DOCUMENT_CATEGORIES, FOLDER_NAMES } from '../src/domain/DocumentCategory.js';
 import axios from 'axios';
 
 vi.mock('axios');
@@ -41,7 +41,7 @@ describe('uploadBulkFiles', () => {
       botToken: 'token',
       files,
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     });
 
@@ -68,7 +68,7 @@ describe('uploadBulkFiles', () => {
       botToken: 'token',
       files: [],
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     })).rejects.toThrow('Drive client is required');
   });
@@ -80,7 +80,7 @@ describe('uploadBulkFiles', () => {
       botToken: 'token',
       files: 'not-array',
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     })).rejects.toThrow('Files array is required');
   });
@@ -91,7 +91,7 @@ describe('uploadBulkFiles', () => {
       bot: {},
       botToken: 'token',
       files: [],
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     })).rejects.toThrow('Property folder ID is required');
   });
@@ -112,7 +112,7 @@ describe('validateBulkUploadRequest', () => {
   it('valida request correcto', () => {
     const result = validateBulkUploadRequest({
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     });
 
@@ -121,7 +121,7 @@ describe('validateBulkUploadRequest', () => {
 
   it('rechaza si falta propertyFolderId', () => {
     const result = validateBulkUploadRequest({
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     });
 
@@ -142,7 +142,7 @@ describe('validateBulkUploadRequest', () => {
   it('rechaza si año es inválido', () => {
     const result = validateBulkUploadRequest({
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: 'invalid',
     });
 
@@ -153,7 +153,7 @@ describe('validateBulkUploadRequest', () => {
   it('acepta sin año si no se proporciona', () => {
     const result = validateBulkUploadRequest({
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.FOTOS_ESTADO,
+      category: DOCUMENT_CATEGORIES.FOTOS,
     });
 
     expect(result.valid).toBe(true);
@@ -169,13 +169,15 @@ describe('checkDuplicateFiles', () => {
     const mockDrive = {
       files: {
         list: vi.fn()
-          .mockResolvedValueOnce({ data: { files: [] } })
-          .mockResolvedValueOnce({ data: { files: [] } })
-          .mockResolvedValueOnce({ data: { files: [{ id: 'file-1', name: 'test1.pdf' }] } })
-          .mockResolvedValueOnce({ data: { files: [] } }),
+          .mockResolvedValueOnce({ data: { files: [] } })  // lookup RENTA folder
+          .mockResolvedValueOnce({ data: { files: [] } })  // lookup year folder
+          .mockResolvedValueOnce({ data: { files: [] } })  // lookup Ingresos folder
+          .mockResolvedValueOnce({ data: { files: [{ id: 'file-1', name: 'test1.pdf' }] } })  // test1.pdf exists
+          .mockResolvedValueOnce({ data: { files: [] } }),                                     // test2.pdf not found
         create: vi.fn()
-          .mockResolvedValueOnce({ data: { id: 'folder-1', name: '01_Contratos' } })
-          .mockResolvedValueOnce({ data: { id: 'folder-2', name: '2024' } }),
+          .mockResolvedValueOnce({ data: { id: 'folder-1', name: FOLDER_NAMES.RENTA } })
+          .mockResolvedValueOnce({ data: { id: 'folder-2', name: '2024' } })
+          .mockResolvedValueOnce({ data: { id: 'folder-3', name: 'Ingresos' } }),
       },
     };
 
@@ -188,7 +190,7 @@ describe('checkDuplicateFiles', () => {
       drive: mockDrive,
       files,
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     });
 
@@ -213,7 +215,7 @@ describe('checkDuplicateFiles', () => {
       drive: mockDrive,
       files,
       propertyFolderId: 'prop-123',
-      category: DOCUMENT_CATEGORIES.CONTRATOS,
+      category: DOCUMENT_CATEGORIES.INGRESOS,
       year: '2024',
     });
 
@@ -225,7 +227,7 @@ describe('checkDuplicateFiles', () => {
       checkDuplicateFiles({
         files: [],
         propertyFolderId: 'prop-123',
-        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        category: DOCUMENT_CATEGORIES.INGRESOS,
         year: '2024',
       })
     ).rejects.toThrow('Drive client is required');
@@ -237,7 +239,7 @@ describe('checkDuplicateFiles', () => {
         drive: {},
         files: 'not-array',
         propertyFolderId: 'prop-123',
-        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        category: DOCUMENT_CATEGORIES.INGRESOS,
         year: '2024',
       })
     ).rejects.toThrow('Files array is required');
@@ -249,7 +251,7 @@ describe('checkDuplicateFiles', () => {
         drive: {},
         files: null,
         propertyFolderId: 'prop-123',
-        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        category: DOCUMENT_CATEGORIES.INGRESOS,
         year: '2024',
       })
     ).rejects.toThrow('Files array is required');
@@ -260,7 +262,7 @@ describe('checkDuplicateFiles', () => {
       checkDuplicateFiles({
         drive: {},
         files: [],
-        category: DOCUMENT_CATEGORIES.CONTRATOS,
+        category: DOCUMENT_CATEGORIES.INGRESOS,
         year: '2024',
       })
     ).rejects.toThrow('Property folder ID is required');

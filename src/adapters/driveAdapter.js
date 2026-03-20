@@ -1,3 +1,5 @@
+import { FOLDER_NAMES } from '../domain/DocumentCategory.js';
+
 export async function findOrCreateFolder({ drive, name, parentId }) {
   if (!name) {
     throw new Error('Folder name is required');
@@ -54,19 +56,16 @@ export async function createFolderStructure({ drive, baseFolderId, propertyAddre
   });
 
   const structure = [
-    { name: `01_Contratos/${year}`, path: ['01_Contratos', year] },
-    { name: '02_Inquilinos_Sensible', path: ['02_Inquilinos_Sensible'] },
-    { name: `03_Seguros/${year}`, path: ['03_Seguros', year] },
-    { name: `04_Suministros/${year}`, path: ['04_Suministros', year] },
-    { name: `05_Comunidad_Impuestos/${year}`, path: ['05_Comunidad_Impuestos', year] },
-    { name: `06_Facturas_Reformas/${year}`, path: ['06_Facturas_Reformas', year] },
-    { name: '07_Fotos_Estado', path: ['07_Fotos_Estado'] },
-    { name: '99_Otros', path: ['99_Otros'] },
+    [FOLDER_NAMES.RENTA, year, 'Ingresos'],
+    [FOLDER_NAMES.RENTA, year, 'Gastos'],
+    [FOLDER_NAMES.GESTION],
+    [FOLDER_NAMES.ARCHIVO],
+    [FOLDER_NAMES.ARCHIVO, 'Fotos'],
   ];
 
-  for (const item of structure) {
+  for (const path of structure) {
     let currentParent = propertyFolder.id;
-    for (const folderName of item.path) {
+    for (const folderName of path) {
       const folder = await findOrCreateFolder({
         drive,
         name: folderName,

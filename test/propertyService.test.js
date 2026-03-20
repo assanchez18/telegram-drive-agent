@@ -490,3 +490,4 @@ describe('unarchiveProperty', () => {
     ).rejects.toThrow('Normalized address is required');
   });
 });
+

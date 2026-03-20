@@ -1,4 +1,4 @@
-import { DOCUMENT_CATEGORIES } from '../domain/DocumentCategory.js';
+import { CATEGORY_FOLDER_MAPPING, buildCategoryButtons } from '../domain/DocumentCategory.js';
 import { getCurrentYear, validateYear } from '../domain/Year.js';
 import { BulkFile } from '../domain/BulkFile.js';
 import {
@@ -127,14 +127,7 @@ Para cancelar: /cancel.`
       });
 
       const categoryButtons = [
-        [{ text: 'Contratos', callback_data: 'bulk_category_Contratos' }],
-        [{ text: 'Inquilinos (Sensible)', callback_data: 'bulk_category_Inquilinos_Sensible' }],
-        [{ text: 'Seguros', callback_data: 'bulk_category_Seguros' }],
-        [{ text: 'Suministros', callback_data: 'bulk_category_Suministros' }],
-        [{ text: 'Comunidad/Impuestos', callback_data: 'bulk_category_Comunidad_Impuestos' }],
-        [{ text: 'Facturas/Reformas', callback_data: 'bulk_category_Facturas_Reformas' }],
-        [{ text: 'Fotos Estado', callback_data: 'bulk_category_Fotos_Estado' }],
-        [{ text: 'Otros', callback_data: 'bulk_category_Otros' }],
+        ...buildCategoryButtons('bulk_category_'),
         [{ text: '❌ Cancelar', callback_data: 'bulk_cancel' }],
       ];
 
@@ -147,20 +140,27 @@ Para cancelar: /cancel.`
 
     if (data.startsWith('bulk_category_')) {
       const category = data.replace('bulk_category_', '');
-
-      updateBulkSessionState(chatId, 'waiting_for_year', { category });
-
-      const currentYear = getCurrentYear();
-      const yearButtons = [
-        [{ text: `${currentYear} ✅`, callback_data: `bulk_year_${currentYear}` }],
-        [{ text: 'Otro año', callback_data: 'bulk_year_custom' }],
-        [{ text: '❌ Cancelar', callback_data: 'bulk_cancel' }],
-      ];
+      const mapping = CATEGORY_FOLDER_MAPPING[category];
 
       await bot.answerCallbackQuery(callbackQuery.id);
-      await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}¿Año?`, {
-        reply_markup: { inline_keyboard: yearButtons },
-      });
+
+      if (mapping && !mapping.requiresYear) {
+        updateBulkSessionState(chatId, 'waiting_for_year', { category });
+        await checkIfNeedBaseNameAndConfirm(bot, chatId, getBulkSession(chatId), null, isDev);
+      } else {
+        updateBulkSessionState(chatId, 'waiting_for_year', { category });
+
+        const currentYear = getCurrentYear();
+        const yearButtons = [
+          [{ text: `${currentYear} ✅`, callback_data: `bulk_year_${currentYear}` }],
+          [{ text: 'Otro año', callback_data: 'bulk_year_custom' }],
+          [{ text: '❌ Cancelar', callback_data: 'bulk_cancel' }],
+        ];
+
+        await bot.sendMessage(chatId, `${isDev ? 'DEV:: ' : ''}¿Año?`, {
+          reply_markup: { inline_keyboard: yearButtons },
+        });
+      }
       return;
     }
 
